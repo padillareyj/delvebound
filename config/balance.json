@@ -1,0 +1,158 @@
+{
+  "character": {
+    "base_stat": 5,
+    "starting_unspent": 5,
+    "starting_gold": 50,
+    "starting_potion_code": "minor_healing_potion",
+    "starting_potion_qty": 2,
+    "starting_potion_belt": 1,
+    "level_cap": 30,
+    "default_retreat_pct": 25,
+    "default_potion_pct": 40,
+    "starter_weapons": {
+      "str": "rusty_sword",
+      "dex": "worn_dagger",
+      "int": "oak_staff"
+    },
+    "starter_armor": ["cloth_tunic", "soft_boots"]
+  },
+  "derived": {
+    "hp_base": 40,
+    "hp_per_vit": 8,
+    "hp_per_level": 4,
+    "attack_offstat_div": 4,
+    "def_vit_div": 2,
+    "def_str_div": 5,
+    "mres_int_div": 2,
+    "mres_vit_div": 5,
+    "crit_base": 5,
+    "crit_per_dex": 0.5,
+    "crit_per_luk": 0.25,
+    "crit_cap": 50,
+    "crit_mult_base": 1.5,
+    "crit_mult_cap": 3.0,
+    "dodge_base": 2,
+    "dodge_per_dex": 0.4,
+    "dodge_per_luk": 0.1,
+    "dodge_cap": 35,
+    "speed_base": 10,
+    "regen_base": 15,
+    "regen_per_vit": 0.5,
+    "regen_cap": 40,
+    "luck_per_luk": 0.01,
+    "luck_cap": 1.5,
+    "gold_find_base": 1,
+    "gold_find_per_luk": 0.01,
+    "gold_find_cap": 3.0,
+    "unarmed_power": 1
+  },
+  "injury": {
+    "wounded_hp_mult": 0.8,
+    "wounded_attack_mult": 0.9
+  },
+  "buffs": {
+    "might_attack_mult": 1.15,
+    "stoneskin_mult": 1.15,
+    "lucky_charm_luck": 0.2
+  },
+  "combat": {
+    "max_rounds": 30,
+    "initiative_die": 5,
+    "variance_min": 0.9,
+    "variance_max": 1.1,
+    "flee_base": 0.5,
+    "flee_per_speed": 0.02,
+    "flee_min": 0.25,
+    "flee_max": 0.9,
+    "smoke_flee_bonus": 0.3,
+    "smoke_flee_cap": 0.95,
+    "belt_slots": 4,
+    "min_damage": 1
+  },
+  "trip": {
+    "clear_xp_bonus": 0.2,
+    "defeat_keep_mult": 0.5,
+    "rest_gold_per_level": 5,
+    "chest_luck_bonus": 0.25,
+    "boss_luck_bonus": 0.5,
+    "boss_min_rarity": "uncommon"
+  },
+  "xp": {
+    "base": 100,
+    "exponent": 1.6,
+    "round_to": 10,
+    "points_per_level": 5,
+    "bonus_every": 5,
+    "bonus_points": 2,
+    "gold_per_new_level": 20,
+    "diff_per_level": 0.1,
+    "diff_min": 0.2,
+    "diff_max": 1.5
+  },
+  "loot": {
+    "luk_drop_bonus": 0.005,
+    "drop_chance_cap": 0.95,
+    "ilvl_jitter": 1,
+    "ilvl_scale_per_level": 0.04,
+    "ilvl_scale_cap": 0.4,
+    "sell_per_ilvl": 0.05,
+    "inventory_capacity": 40,
+    "max_prefixes": 2,
+    "max_suffixes": 2,
+    "chest_rolls_base": 2,
+    "chest_rolls_every": 10,
+    "chest_rolls_cap": 4,
+    "rarity": [
+      {"name": "common", "weight": 600, "affixes": 0, "stat_mult": 1.0, "value_mult": 1},
+      {"name": "uncommon", "weight": 250, "affixes": 1, "stat_mult": 1.1, "value_mult": 2},
+      {"name": "rare", "weight": 110, "affixes": 2, "stat_mult": 1.2, "value_mult": 4},
+      {"name": "epic", "weight": 35, "affixes": 3, "stat_mult": 1.35, "value_mult": 10},
+      {"name": "legendary", "weight": 5, "affixes": 4, "stat_mult": 1.5, "value_mult": 30}
+    ]
+  },
+  "arena": {
+    "win_gold_per_level": 8,
+    "win_xp_per_level": 6,
+    "champion_gold_per_level": 40,
+    "champion_xp_per_level": 20
+  },
+  "shop": {
+    "price_value_mult": 4,
+    "price_level_factor": 0.05,
+    "price_round_to": 5,
+    "price_min": 10,
+    "max_stack": 20,
+    "respec_gold_per_level": 50
+  },
+  "bots": {
+    "stats": ["str", "dex", "int", "vit", "luk"],
+    "slots": ["weapon", "offhand", "head", "chest", "hands", "feet", "ring1", "ring2", "amulet"],
+    "hp_safety_base": 60,
+    "hp_safety_per_level": 12,
+    "quirk_factor": 0.3,
+    "equip_hysteresis": 1.01,
+    "equip_passes": 2,
+    "junk_start_ratio": 0.75,
+    "junk_stop_ratio": 0.5,
+    "junk_level_ahead": 3,
+    "surplus_potion_mult": 2,
+    "explore_factor": 0.15,
+    "explore_window": 3,
+    "in_range_bonus": 0.5,
+    "retreat_penalty": 0.5,
+    "rarity_weight": 10,
+    "score_noise_floor": 0.05,
+    "step_up_cap": 2,
+    "potion_threshold_offset": 15,
+    "gear_units": {
+      "hp": 10,
+      "attack": 1,
+      "defense": 1,
+      "mres": 1,
+      "crit": 1,
+      "dodge": 1,
+      "speed": 2,
+      "mf": 5
+    }
+  }
+}

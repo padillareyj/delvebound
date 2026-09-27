@@ -1,0 +1,18 @@
+[
+  {"name": "Rusty Sword", "base_value": 5, "req_level": 1, "price": 20},
+  {"name": "Worn Dagger", "base_value": 5, "req_level": 1, "price": 20},
+  {"name": "Oak Staff", "base_value": 5, "req_level": 1, "price": 20},
+  {"name": "Iron Longsword", "base_value": 25, "req_level": 4, "price": 120},
+  {"name": "Hunter's Shortbow", "base_value": 25, "req_level": 4, "price": 120},
+  {"name": "Apprentice Wand", "base_value": 25, "req_level": 4, "price": 120},
+  {"name": "Copper Ring", "base_value": 10, "req_level": 1, "price": 40},
+  {"name": "Leather Gloves", "base_value": 8, "req_level": 2, "price": 35},
+  {"name": "Wooden Buckler", "base_value": 6, "req_level": 1, "price": 25},
+  {"name": "Iron Kite Shield", "base_value": 45, "req_level": 6, "price": 235},
+  {"name": "Cloth Tunic", "base_value": 3, "req_level": 1, "price": 15},
+  {"name": "Leather Jerkin", "base_value": 20, "req_level": 3, "price": 90},
+  {"name": "Chainmail", "base_value": 50, "req_level": 6, "price": 260},
+  {"name": "Leather Cap", "base_value": 4, "req_level": 1, "price": 15},
+  {"name": "Iron Helm", "base_value": 35, "req_level": 5, "price": 175},
+  {"name": "Soft Boots", "base_value": 4, "req_level": 1, "price": 15}
+]

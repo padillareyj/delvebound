@@ -1,0 +1,29 @@
+{
+    "$schema": "https://www.schemastore.org/package.json",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "^4.0.0",
+        "@types/node": "^26.6.3",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "@vitejs/plugin-react": "^5.2.0",
+        "laravel-vite-plugin": "^2.0.0",
+        "tailwindcss": "^4.0.0",
+        "typescript": "^7.0.2",
+        "vite": "^7.0.7"
+    },
+    "dependencies": {
+        "@fontsource-variable/inter": "^5.3.0",
+        "@fontsource/cinzel": "^5.3.0",
+        "@inertiajs/react": "^2.3.28",
+        "clsx": "^2.1.1",
+        "lucide-react": "^1.48.0",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0"
+    }
+}

@@ -1,0 +1,10 @@
+[
+  {"name": "town_any_level", "level": 12, "place": {"name": "Lanternford", "place_type": "rest", "is_active": true, "min_level": 1, "max_level": null, "rec_min_level": 1, "rec_max_level": 1, "rec_level": 1}, "ok": true, "reason": null},
+  {"name": "greenwood_level_1", "level": 1, "place": {"name": "Greenwood Forest", "place_type": "forest", "is_active": true, "min_level": 1, "max_level": 6, "rec_min_level": 1, "rec_max_level": 3, "rec_level": 2}, "ok": true, "reason": null},
+  {"name": "greenwood_outgrown", "level": 7, "place": {"name": "Greenwood Forest", "place_type": "forest", "is_active": true, "min_level": 1, "max_level": 6, "rec_min_level": 1, "rec_max_level": 3, "rec_level": 2}, "ok": false, "reason": "too_high"},
+  {"name": "mine_too_low", "level": 1, "place": {"name": "Old Copper Mine", "place_type": "mine", "is_active": true, "min_level": 2, "max_level": 9, "rec_min_level": 3, "rec_max_level": 6, "rec_level": 4}, "ok": false, "reason": "too_low"},
+  {"name": "crypt_at_gate", "level": 5, "place": {"name": "Sunken Crypt", "place_type": "dungeon", "is_active": true, "min_level": 5, "max_level": null, "rec_min_level": 6, "rec_max_level": 9, "rec_level": 8}, "ok": true, "reason": null},
+  {"name": "crypt_below", "level": 4, "place": {"name": "Sunken Crypt", "place_type": "dungeon", "is_active": true, "min_level": 5, "max_level": null, "rec_min_level": 6, "rec_max_level": 9, "rec_level": 8}, "ok": false, "reason": "too_low"},
+  {"name": "depths_high", "level": 30, "place": {"name": "Obsidian Depths", "place_type": "cave", "is_active": true, "min_level": 11, "max_level": null, "rec_min_level": 12, "rec_max_level": 16, "rec_level": 14}, "ok": true, "reason": null},
+  {"name": "inactive", "level": 10, "place": {"name": "Closed", "place_type": "forest", "is_active": false, "min_level": 1, "max_level": null, "rec_min_level": 1, "rec_max_level": 3, "rec_level": 2}, "ok": false, "reason": "inactive"}
+]

@@ -1,0 +1,68 @@
+[
+  {
+    "name": "rey_level_1_starter",
+    "level": 1,
+    "stats": {"str": 7, "dex": 6, "int": 5, "vit": 7, "luk": 5},
+    "equipment": [
+      {"slot": "weapon", "power": 4, "armor": 0, "mres": 0, "scaling_stat": "str", "implicit": {}, "affixes": []},
+      {"slot": "chest", "power": 0, "armor": 2, "mres": 1, "scaling_stat": null, "implicit": {}, "affixes": []},
+      {"slot": "feet", "power": 0, "armor": 1, "mres": 0, "scaling_stat": null, "implicit": {"speed": 1}, "affixes": []}
+    ],
+    "injury": 0,
+    "buffs": [],
+    "expected": {"hp": 100, "attack": 12, "defense": 7, "mres": 4, "crit": 9.25, "crit_mult": 1.5, "dodge": 4.9, "speed": 17, "regen": 18.5, "luck": 0.05, "gold_find": 1.05, "damage_type": "physical"}
+  },
+  {
+    "name": "unarmed_base",
+    "level": 1,
+    "stats": {"str": 5, "dex": 5, "int": 5, "vit": 5, "luk": 5},
+    "equipment": [],
+    "injury": 0,
+    "buffs": [],
+    "expected": {"hp": 84, "attack": 7, "defense": 3, "mres": 3, "crit": 8.75, "crit_mult": 1.5, "dodge": 4.5, "speed": 15, "regen": 17.5, "luck": 0.05, "gold_find": 1.05, "damage_type": "physical"}
+  },
+  {
+    "name": "int_weapon_magic",
+    "level": 1,
+    "stats": {"str": 5, "dex": 5, "int": 10, "vit": 5, "luk": 5},
+    "equipment": [
+      {"slot": "weapon", "power": 6, "armor": 0, "mres": 1, "scaling_stat": "int", "implicit": {}, "affixes": []}
+    ],
+    "injury": 0,
+    "buffs": [],
+    "expected": {"hp": 84, "attack": 17, "defense": 3, "mres": 7, "crit": 8.75, "crit_mult": 1.5, "dodge": 4.5, "speed": 15, "regen": 17.5, "luck": 0.05, "gold_find": 1.05, "damage_type": "magic"}
+  },
+  {
+    "name": "rey_wounded",
+    "level": 1,
+    "stats": {"str": 7, "dex": 6, "int": 5, "vit": 7, "luk": 5},
+    "equipment": [
+      {"slot": "weapon", "power": 4, "armor": 0, "mres": 0, "scaling_stat": "str", "implicit": {}, "affixes": []},
+      {"slot": "chest", "power": 0, "armor": 2, "mres": 1, "scaling_stat": null, "implicit": {}, "affixes": []},
+      {"slot": "feet", "power": 0, "armor": 1, "mres": 0, "scaling_stat": null, "implicit": {"speed": 1}, "affixes": []}
+    ],
+    "injury": 1,
+    "buffs": [],
+    "expected": {"hp": 80, "attack": 11, "defense": 7, "mres": 4, "damage_type": "physical"}
+  },
+  {
+    "name": "rey_might",
+    "level": 1,
+    "stats": {"str": 7, "dex": 6, "int": 5, "vit": 7, "luk": 5},
+    "equipment": [
+      {"slot": "weapon", "power": 4, "armor": 0, "mres": 0, "scaling_stat": "str", "implicit": {}, "affixes": []}
+    ],
+    "injury": 0,
+    "buffs": ["might"],
+    "expected": {"attack": 14, "damage_type": "physical"}
+  },
+  {
+    "name": "caps",
+    "level": 1,
+    "stats": {"str": 5, "dex": 200, "int": 5, "vit": 200, "luk": 200},
+    "equipment": [],
+    "injury": 0,
+    "buffs": [],
+    "expected": {"crit": 50, "dodge": 35, "regen": 40, "luck": 1.5, "gold_find": 3.0}
+  }
+]
