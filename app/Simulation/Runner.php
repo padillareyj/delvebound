@@ -4,6 +4,7 @@ namespace App\Simulation;
 
 use App\Game\Bots\BotPlanner;
 use App\Game\MailReport;
+use App\Game\Progression;
 use App\Game\Rng;
 use App\Game\Trip;
 use Closure;
@@ -86,11 +87,31 @@ final class Runner
             $this->log('info', "run {$runId} seed {$run['seed']} dry=".($dry ? 'yes' : 'no'));
             $this->say(($dry ? 'Preview of run' : 'Run')." #{$runId} (seed {$run['seed']})", 'title');
 
+            if (! $opts['resume']) {
+                foreach ((new WorldExpander($this->db, $this->balance))->open() as $region) {
+                    $verb = $dry ? 'Preview of a new map' : 'A new map opens';
+                    $this->say("{$verb}: {$region['name']} (Lv {$region['from']}–{$region['to']}).");
+                    $this->log('info', "world region {$region['code']} Lv {$region['from']}-{$region['to']}");
+                }
+            }
+            $this->balance['character']['level_cap'] = Progression::levelCap(
+                $this->balance,
+                (int) $this->db->table('places')->max('rec_max_level'),
+            );
+
             $world = $this->repo->loadWorld();
             foreach ($world['places'] as $place) {
                 if ($place['place_type'] !== 'rest' && $place['spawns'] === []) {
                     $this->log('warning', "place {$place['code']} has no monsters");
                     $this->say("Warning: {$place['name']} has no monsters.", 'warn');
+                }
+            }
+
+            if (! $opts['resume']) {
+                $born = $this->repo->birthNewcomer((int) $run['seed'], $runId, $world, $this->balance);
+                if ($born !== null) {
+                    $this->say("A hero has been born: {$born['name']}, a level {$born['level']} {$born['archetype']}.");
+                    $this->log('info', "newcomer {$born['name']} level {$born['level']} {$born['archetype']}");
                 }
             }
 
@@ -118,7 +139,10 @@ final class Runner
                 $ctx = $this->repo->loadTripContext($characterId, $plan, $world, $this->balance, $run);
                 $result = Trip::resolve($ctx, Rng::trip((int) $run['seed'], $characterId));
                 $mail = MailReport::render($result, $runId, $run['started_at'], $ctx['character']['trips_total'] + 1, $opts['display_tz']);
-                $this->db->transaction(fn () => $this->repo->applyTrip($run, $ctx, $result, $mail));
+                $this->db->transaction(function () use ($run, $ctx, $result, $mail, $characterId) {
+                    $this->repo->applyTrip($run, $ctx, $result, $mail);
+                    $this->repo->settleAuto($characterId, (int) $run['seed'], $this->balance);
+                });
                 $counts[$result['outcome']] = ($counts[$result['outcome']] ?? 0) + 1;
                 $name = $ctx['character']['name'];
                 $this->log('info', sprintf(
@@ -187,25 +211,28 @@ final class Runner
                     return null;
                 }
                 $state = $this->repo->loadCharacter($characterId);
-                if (! $state['is_bot']) {
+                if (! $state['is_bot'] && ! $state['auto_mode']) {
+                    return null;
+                }
+                if ($state['profile'] === null) {
                     return null;
                 }
                 $this->repo->openSealedBoxes($characterId, $world, $this->balance);
                 $state = $this->repo->loadCharacter($characterId);
-                $decision = BotPlanner::plan($state, $world['places'], $world['shop'], Rng::bot((int) $run['seed'], $characterId), $this->balance);
+                $decision = BotPlanner::plan($state, $world['places'], $world['shop'], Rng::bot((int) $run['seed'], $characterId), $this->balance, $world['premium'] ?? []);
                 $this->repo->applyBot($run, $state, $decision);
 
-                return [$state['name'], $decision];
+                return [$state['is_bot'] ? 'bot' : 'auto', $state['name'], $decision];
             });
             if ($made === null) {
                 continue;
             }
-            [$name, $decision] = $made;
-            $this->log('info', "bot {$characterId}({$name}) -> {$decision['place']}");
+            [$kind, $name, $decision] = $made;
+            $this->log('info', "{$kind} {$characterId}({$name}) -> {$decision['place']}");
             if ($print) {
                 $bought = implode(', ', array_column($decision['bought'], 'code')) ?: 'nothing';
                 $points = implode(' ', array_map(fn ($s, $n) => "+{$n} {$s}", array_keys($decision['points']), $decision['points'])) ?: 'no points';
-                $this->say("  bot {$name}: {$points}; bought {$bought}; heading to {$decision['place']}", 'detail');
+                $this->say("  {$kind} {$name}: {$points}; bought {$bought}; heading to {$decision['place']}", 'detail');
             }
         }
     }

@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use App\Game\Balance;
+use App\Game\Forge;
+use App\Game\Growth;
+use App\Game\Premium;
 use App\Game\Progression;
 use App\Game\Rules;
 use App\Game\ShopMath;
@@ -17,6 +20,8 @@ class GameQueries
 
     private const BUFF_EFFECTS = ['buff_attack_pct' => 'might', 'buff_defense_pct' => 'stoneskin', 'luck_bonus' => 'luck'];
 
+    private ?int $contentCeiling = null;
+
     // ------------------------------------------------------------ helpers
 
     public static function utc(?string $value): ?string
@@ -27,6 +32,77 @@ class GameQueries
     private static function json(mixed $value): mixed
     {
         return is_string($value) ? json_decode($value, true) : $value;
+    }
+
+    private ?array $premiumCatalog = null;
+
+    /** @return array<string, array> every premium item, keyed by code */
+    public function premiumCatalog(): array
+    {
+        if ($this->premiumCatalog === null) {
+            $this->premiumCatalog = [];
+            foreach (DB::table('premium_items')->orderBy('sort_order')->orderBy('id')->get() as $row) {
+                $this->premiumCatalog[$row->code] = Premium::row((array) $row);
+            }
+        }
+
+        return $this->premiumCatalog;
+    }
+
+    public function premiumState(array|object $char): array
+    {
+        $char = (array) $char;
+        $cash = array_key_exists('premium_cash', $char) && $char['premium_cash'] !== null ? (int) $char['premium_cash'] : null;
+
+        return Premium::state($cash, $char['premium'] ?? null, $this->premiumCatalog(), Balance::get());
+    }
+
+    /** What the UI needs to draw a premium piece. */
+    public static function premiumView(array $item): array
+    {
+        return [
+            'code' => $item['code'],
+            'name' => $item['name'],
+            'category' => $item['category'],
+            'tier' => $item['tier'],
+            'glyph' => $item['glyph'],
+            'style' => $item['style'],
+            'description' => $item['description'],
+            'price_cents' => $item['price_cents'],
+            'price' => Premium::money($item['price_cents']),
+            'bonuses' => (object) $item['bonuses'],
+            'power' => $item['power'],
+            'grant_gold' => $item['grant_gold'],
+        ];
+    }
+
+    /** @return array{title: array|null, gear: list<array>} the worn pieces, for names and portraits */
+    private function appearance(array $premium): array
+    {
+        $title = null;
+        $gear = [];
+        foreach ($premium['gear'] as $item) {
+            $view = self::premiumView($item);
+            $gear[] = $view;
+            if ($item['category'] === 'title') {
+                $title = $view;
+            }
+        }
+
+        return ['title' => $title, 'gear' => $gear];
+    }
+
+    private function bonusFor(array $growth, array $premium, array $balance): array
+    {
+        return Stats::mergeBonus(
+            Growth::bonuses($growth['ranks'], $growth['horcrux']['tier'], $balance),
+            Premium::bonuses($premium['gear']),
+        );
+    }
+
+    private function powerFor(int $level, array $growth, array $premium, array $balance): int
+    {
+        return Growth::powerLevel($level, $growth['ranks'], $growth['horcrux']['tier'], $balance, Premium::power($premium['gear']));
     }
 
     public function character(int $accountId): array
@@ -141,6 +217,55 @@ class GameQueries
         return $rows->map(fn ($row) => $this->itemView($row, $affixes))->all();
     }
 
+    /**
+     * Odds and gold for combining two pieces. The page displays this; it does not roll.
+     *
+     * @return array{ok: bool, reason: ?string, gold: int, chances: ?array, slot: ?string, left_id: int, right_id: int}
+     */
+    public function forgeQuote(int $accountId, int $leftId, int $rightId): array
+    {
+        $char = $this->character($accountId);
+        $left = $this->forgePiece((int) $char['id'], $leftId);
+        $right = $this->forgePiece((int) $char['id'], $rightId);
+        if ($left === null || $right === null) {
+            return [
+                'ok' => false,
+                'reason' => 'Those pieces are not both in your pack.',
+                'gold' => 0,
+                'chances' => null,
+                'slot' => null,
+                'left_id' => $leftId,
+                'right_id' => $rightId,
+            ];
+        }
+
+        return Forge::quote($left, $right, (int) $char['gold'], (int) $char['stat_luk'], Balance::get());
+    }
+
+    /** @return array{id: int, name: string, slot: string, rarity: string, item_level: int, equipped: bool}|null */
+    private function forgePiece(int $characterId, int $itemId): ?array
+    {
+        $row = DB::table('item_instances as ii')
+            ->join('item_templates as it', 'it.id', '=', 'ii.template_id')
+            ->leftJoin('character_equipment as ce', 'ce.item_instance_id', '=', 'ii.id')
+            ->where('ii.id', $itemId)
+            ->where('ii.character_id', $characterId)
+            ->where('ii.status', 'owned')
+            ->first(['ii.id', 'ii.display_name', 'ii.rarity', 'ii.item_level', 'it.slot as template_slot', 'ce.item_instance_id as equipped_id']);
+        if (! $row) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $row->id,
+            'name' => $row->display_name,
+            'slot' => $row->template_slot,
+            'rarity' => $row->rarity,
+            'item_level' => (int) $row->item_level,
+            'equipped' => $row->equipped_id !== null,
+        ];
+    }
+
     public function consumables(int $characterId): array
     {
         return DB::table('character_consumables as cc')
@@ -208,6 +333,13 @@ class GameQueries
         if ((int) $char['injury_severity'] >= 2) {
             return ['label' => 'Forced rest in Lanternford', 'kind' => 'blocked'];
         }
+        if (! empty($char['auto_mode'])) {
+            if (($char['auto_place'] ?? 'profile') === 'best') {
+                return ['label' => 'Best place you can clear', 'kind' => 'auto_best'];
+            }
+
+            return ['label' => 'Chosen when the run starts', 'kind' => 'auto'];
+        }
         if ($order) {
             return ['label' => $order['name'], 'kind' => 'order'];
         }
@@ -221,6 +353,16 @@ class GameQueries
         return ['label' => 'Rest in Lanternford', 'kind' => 'rest'];
     }
 
+    /** Authored cap, or the highest recommended level once generated regions go past it. */
+    private function levelCap(array $balance): int
+    {
+        if ($this->contentCeiling === null) {
+            $this->contentCeiling = (int) DB::table('places')->max('rec_max_level');
+        }
+
+        return Progression::levelCap($balance, $this->contentCeiling);
+    }
+
     // -------------------------------------------------------------- shared
 
     public function heroSummary(int $accountId): ?array
@@ -232,12 +374,17 @@ class GameQueries
         $char = (array) $row;
         $balance = Balance::get();
         $level = (int) $char['level'];
-        $atCap = $level >= (int) $balance['character']['level_cap'];
+        $atCap = $level >= $this->levelCap($balance);
+        $growth = $this->growthState((int) $char['id']);
+        $premium = $this->premiumState($char);
 
         return [
             'id' => (int) $char['id'],
             'name' => $char['name'],
+            'title' => $this->appearance($premium)['title'],
+            'cash' => $premium['cash'],
             'level' => $level,
+            'power' => $this->powerFor($level, $growth, $premium, $balance),
             'xp' => (int) $char['xp'],
             'xp_to_next' => $atCap ? null : Progression::xpToNext($level, $balance),
             'gold' => (int) $char['gold'],
@@ -278,7 +425,9 @@ class GameQueries
         $order = $this->pendingOrder($cid);
         $consumables = $this->consumables($cid);
         $equipment = $this->equipment($cid);
-        $derived = Stats::derived($this->stats($char), (int) $char['level'], array_values($equipment), null, (int) $char['injury_severity']);
+        $growth = $this->growthState($cid);
+        $bonus = $this->bonusFor($growth, $this->premiumState($char), Balance::get());
+        $derived = Stats::derived($this->stats($char), (int) $char['level'], array_values($equipment), null, (int) $char['injury_severity'], [], $bonus);
 
         return [
             'next' => $this->nextDestination($char, $order),
@@ -308,7 +457,7 @@ class GameQueries
         return DB::table('trips as t')->join('places as p', 'p.id', '=', 't.place_id')
             ->where('t.character_id', $characterId)->orderByDesc('t.id')->limit($limit)
             ->get(['t.id', 't.run_id', 't.outcome', 't.xp_gained', 't.gold_gained', 't.level_before', 't.level_after',
-                't.max_hp', 't.hp_end', 't.encounters_won', 't.created_at', 'p.name as place_name', 'p.code as place_code'])
+                't.max_hp', 't.hp_end', 't.encounters_won', 't.created_at', 'p.name as place_name', 'p.code as place_code', 'p.place_type'])
             ->map(fn ($t) => [
                 'id' => (int) $t->id,
                 'run_id' => (int) $t->run_id,
@@ -321,6 +470,7 @@ class GameQueries
                 'encounters_won' => (int) $t->encounters_won,
                 'place' => $t->place_name,
                 'place_code' => $t->place_code,
+                'place_type' => $t->place_type,
                 'created_at' => self::utc($t->created_at),
             ])->all();
     }
@@ -337,14 +487,18 @@ class GameQueries
         $consumables = $this->consumables($cid);
         $buffs = $this->beltBuffs($consumables);
         $injury = (int) $char['injury_severity'];
-        $derived = Stats::derived($stats, $level, $gear, $balance, $injury, $buffs);
-        $base = Stats::derived($stats, $level, $gear, $balance, $injury);
+        $growth = $this->growthState($cid);
+        $premium = $this->premiumState($char);
+        $bonus = $this->bonusFor($growth, $premium, $balance);
+        $derived = Stats::derived($stats, $level, $gear, $balance, $injury, $buffs, $bonus);
+        $base = Stats::derived($stats, $level, $gear, $balance, $injury, [], $bonus);
+        $plain = Stats::derived($stats, $level, $gear, $balance, $injury, [], []);
 
         $perPoint = [];
         foreach (Stats::PRIMARY as $stat) {
             $bumped = $stats;
             $bumped[$stat]++;
-            $after = Stats::derived($bumped, $level, $gear, $balance, $injury, $buffs);
+            $after = Stats::derived($bumped, $level, $gear, $balance, $injury, $buffs, $bonus);
             $delta = [];
             foreach (['hp', 'attack', 'defense', 'mres', 'crit', 'dodge', 'speed', 'regen', 'luck', 'gold_find'] as $key) {
                 $change = round($after[$key] - $derived[$key], 4);
@@ -363,13 +517,18 @@ class GameQueries
                 'level' => $level,
                 'xp' => (int) $char['xp'],
                 'total_xp' => (int) $char['total_xp'],
-                'xp_to_next' => $level >= (int) $balance['character']['level_cap'] ? null : Progression::xpToNext($level, $balance),
+                'xp_to_next' => $level >= $this->levelCap($balance) ? null : Progression::xpToNext($level, $balance),
                 'gold' => (int) $char['gold'],
                 'stats' => $stats,
                 'unspent' => (int) $char['unspent_points'],
                 'retreat_threshold_pct' => (int) $char['retreat_threshold_pct'],
                 'potion_threshold_pct' => (int) $char['potion_threshold_pct'],
                 'auto_repeat' => (bool) $char['auto_repeat'],
+                'auto_mode' => (bool) $char['auto_mode'],
+                'auto_place' => ($char['auto_place'] ?? 'profile') === 'best' ? 'best' : 'profile',
+                'auto_profile' => $char['auto_profile_id']
+                    ? DB::table('bot_profiles')->where('id', $char['auto_profile_id'])->value('code')
+                    : null,
                 'injury_severity' => $injury,
                 'injury_runs_left' => (int) $char['injury_runs_left'],
                 'row_version' => (int) $char['row_version'],
@@ -384,7 +543,237 @@ class GameQueries
             'respecCost' => ShopMath::respecCost($level, $balance),
             'pointPool' => Progression::pointPool($level, $balance),
             'baseStat' => (int) $balance['character']['base_stat'],
-            'caps' => array_intersect_key($balance['derived'], array_flip(['crit_cap', 'dodge_cap', 'regen_cap', 'luck_cap'])),
+            'caps' => array_intersect_key($balance['derived'], array_flip(['crit_cap', 'dodge_cap', 'regen_cap', 'luck_cap', 'lifesteal_cap', 'penetration_cap', 'dmg_reduction_cap', 'xp_bonus_cap'])),
+            'power' => $this->powerFor($level, $growth, $premium, $balance),
+            'powerParts' => [
+                'level' => (int) $balance['growth']['power_per_level'] * $level,
+                'growth' => Growth::powerLevel(0, $growth['ranks'], $growth['horcrux']['tier'], $balance),
+                'premium' => Premium::power($premium['gear']),
+            ],
+            'plainDerived' => $plain,
+            'bonusSources' => [
+                ['source' => 'Skills', 'bonus' => (object) array_filter(Growth::bonuses($growth['ranks'], 0, $balance))],
+                ['source' => 'Horcrux', 'bonus' => (object) array_filter(Growth::bonuses([], $growth['horcrux']['tier'], $balance))],
+                ['source' => 'Premium', 'bonus' => (object) array_filter(Premium::bonuses($premium['gear']))],
+            ],
+            'appearance' => $this->appearance($premium),
+            'cash' => $premium['cash'],
+            'skills' => $growth['skills'],
+            'horcrux' => $growth['horcrux'],
+            'materials' => $growth['materials'],
+            'autoProfiles' => DB::table('bot_profiles')->orderBy('id')->get(['code', 'name', 'archetype', 'description'])
+                ->map(fn ($row) => [
+                    'code' => $row->code,
+                    'name' => $row->name,
+                    'archetype' => $row->archetype,
+                    'description' => $row->description,
+                ])->all(),
+        ] + $this->inventoryBlock($char, $balance, $bonus);
+    }
+
+    /** Public sheet for any adventurer. Inventory, materials, belt counts, and orders stay private. */
+    public function publicSheet(int $characterId): array
+    {
+        $row = DB::table('characters')->where('id', $characterId)->first();
+        if (! $row) {
+            throw new NotFoundHttpException('No such adventurer.');
+        }
+        $balance = Balance::get();
+        $char = (array) $row;
+        $level = (int) $char['level'];
+        $stats = $this->stats($char);
+        $equipment = $this->equipment($characterId);
+        $gear = array_values($equipment);
+        $buffs = $this->beltBuffs($this->consumables($characterId));
+        $injury = (int) $char['injury_severity'];
+        $growth = $this->growthState($characterId);
+        $premium = $this->premiumState($char);
+        $bonus = $this->bonusFor($growth, $premium, $balance);
+        $derived = Stats::derived($stats, $level, $gear, $balance, $injury, $buffs, $bonus);
+        $base = Stats::derived($stats, $level, $gear, $balance, $injury, [], $bonus);
+        $bestPlace = $char['best_place_id'] ? $this->place((int) $char['best_place_id']) : null;
+        $skills = array_map(fn (array $skill) => [
+            'code' => $skill['code'],
+            'name' => $skill['name'],
+            'glyph' => $skill['glyph'],
+            'blurb' => $skill['blurb'],
+            'rank' => $skill['rank'],
+            'max_rank' => $skill['max_rank'],
+            'lines' => $skill['lines'],
+        ], $growth['skills']);
+
+        return [
+            'character' => [
+                'id' => $characterId,
+                'name' => $char['name'],
+                'is_bot' => (bool) $char['is_bot'],
+                'level' => $level,
+                'xp' => (int) $char['xp'],
+                'total_xp' => (int) $char['total_xp'],
+                'xp_to_next' => $level >= $this->levelCap($balance) ? null : Progression::xpToNext($level, $balance),
+                'gold' => (int) $char['gold'],
+                'stats' => $stats,
+                'injury_severity' => $injury,
+                'injury_runs_left' => (int) $char['injury_runs_left'],
+                'best_place' => $bestPlace['name'] ?? null,
+                'created_at' => self::utc($char['created_at']),
+                'kills' => (int) $char['kills'],
+                'boss_kills' => (int) $char['boss_kills'],
+                'trips_cleared' => (int) $char['trips_cleared'],
+                'defeats' => (int) $char['defeats'],
+            ],
+            'derived' => $derived,
+            'baseDerived' => $base,
+            'buffs' => $buffs,
+            'power' => $this->powerFor($level, $growth, $premium, $balance),
+            'appearance' => $this->appearance($premium),
+            'skills' => $skills,
+            'horcrux' => $growth['horcrux'],
+            'equipment' => $equipment === [] ? (object) [] : $equipment,
+        ];
+    }
+
+    /** @return array{ranks: array<string, int>, skills: list<array>, horcrux: array, materials: list<array>} */
+    private function growthState(int $characterId): array
+    {
+        $balance = Balance::get();
+        $char = DB::table('characters')->where('id', $characterId)->first(['materials', 'skills', 'horcrux_tier', 'horcrux_progress', 'gold']);
+        $owned = self::json($char->materials ?? null) ?: [];
+        $stacks = DB::table('material_templates')
+            ->orderBy('sort_order')->orderBy('id')
+            ->get(['id', 'code', 'name', 'kind', 'glyph', 'description'])
+            ->map(function ($row) use ($owned) {
+                $row->qty = (int) ($owned[$row->code] ?? 0);
+
+                return $row;
+            });
+        $places = [];
+        foreach (DB::table('place_materials as pm')
+            ->join('places as p', 'p.id', '=', 'pm.place_id')
+            ->join('material_templates as m', 'm.id', '=', 'pm.material_id')
+            ->orderBy('p.min_level')->orderBy('p.name')
+            ->get(['m.code', 'p.name']) as $row) {
+            $places[$row->code][] = $row->name;
+        }
+        $materials = $stacks->map(fn ($row) => [
+            'code' => $row->code,
+            'name' => $row->name,
+            'kind' => $row->kind,
+            'glyph' => $row->glyph,
+            'description' => $row->description,
+            'qty' => (int) $row->qty,
+            'places' => $places[$row->code] ?? [],
+        ])->all();
+        $qtyList = array_map(fn ($row) => ['code' => $row['code'], 'kind' => $row['kind'], 'qty' => $row['qty']], $materials);
+        $ranks = [];
+        foreach (self::json($char->skills ?? null) ?: [] as $code => $rank) {
+            $ranks[$code] = (int) $rank;
+        }
+        $gold = (int) ($char->gold ?? 0);
+        $skills = [];
+        foreach ($balance['growth']['skills'] as $skill) {
+            $rank = (int) ($ranks[$skill['code']] ?? 0);
+            $cost = Growth::rankCost($rank + 1, $balance);
+            $have = $cost ? Growth::materialQty($qtyList, $cost['material']) : 0;
+            $needName = null;
+            if ($cost) {
+                $needName = $cost['material'] === 'essence'
+                    ? 'any place essence'
+                    : (collect($materials)->firstWhere('code', $cost['material'])['name'] ?? $cost['material']);
+            }
+            $lines = [];
+            foreach (['attack' => 'Attack', 'defense' => 'Defense', 'mres' => 'Magic Res', 'hp' => 'HP', 'crit_pct' => 'Crit', 'magic_find_pct' => 'Magic Find'] as $key => $label) {
+                if (isset($skill[$key])) {
+                    $lines[] = '+'.($skill[$key] * max(1, $rank ?: 1))." {$label}".($rank === 0 ? ' at rank 1' : '');
+                }
+            }
+            $skills[] = [
+                'code' => $skill['code'],
+                'name' => $skill['name'],
+                'glyph' => $skill['glyph'],
+                'blurb' => $skill['blurb'],
+                'rank' => $rank,
+                'max_rank' => (int) $balance['growth']['max_rank'],
+                'lines' => $lines,
+                'next' => $cost ? [
+                    'rank' => (int) $cost['rank'],
+                    'gold' => (int) $cost['gold'],
+                    'qty' => (int) $cost['qty'],
+                    'have' => $have,
+                    'material' => $needName,
+                    'ready' => $gold >= (int) $cost['gold'] && $have >= (int) $cost['qty'],
+                ] : null,
+            ];
+        }
+        $progress = (int) ($char->horcrux_progress ?? 0);
+        $tier = (int) ($char->horcrux_tier ?? 0);
+        $thresholds = $balance['growth']['horcrux']['thresholds'];
+        $maxTier = count($thresholds) - 1;
+        $nextAt = $tier < $maxTier ? (int) $thresholds[$tier + 1] : null;
+        $per = $balance['growth']['horcrux']['per_tier'];
+
+        return [
+            'ranks' => $ranks,
+            'skills' => $skills,
+            'horcrux' => [
+                'name' => $balance['growth']['horcrux']['name'],
+                'tier' => $tier,
+                'max_tier' => $maxTier,
+                'progress' => $progress,
+                'next_at' => $nextAt,
+                'per_tier' => $per,
+            ],
+            'materials' => $materials,
+        ];
+    }
+
+    /** Inventory, belt, and chests for the hero page. */
+    private function inventoryBlock(array $char, array $balance, array $bonus): array
+    {
+        $cid = (int) $char['id'];
+        $level = (int) $char['level'];
+        $stats = $this->stats($char);
+        $equipment = $this->equipment($cid);
+        $inventory = $this->inventory($cid);
+        $current = Stats::derived($stats, $level, array_values($equipment), $balance, (int) $char['injury_severity'], [], $bonus);
+        $keys = ['hp', 'attack', 'defense', 'mres', 'crit', 'dodge', 'speed', 'luck'];
+        foreach ($inventory as &$item) {
+            $slot = $this->targetSlot($item, $equipment);
+            $loadout = $equipment;
+            unset($loadout[$slot]);
+            [$ok, $note] = Rules::canEquip($item, $slot, $level, $loadout);
+            $item['target_slot'] = $slot;
+            $item['can_equip'] = $ok;
+            $item['equip_note'] = $ok
+                ? ($note === 'clears_offhand' && isset($equipment['offhand']) ? 'Two-handed: your off-hand goes back to the inventory.' : null)
+                : Rules::equipMessage($note);
+            $item['feed'] = Growth::feedValue($item, $balance);
+            $trial = $loadout;
+            $trial[$slot] = $item + ['equip_slot' => $slot];
+            if ($slot === 'weapon' && $item['two_handed']) {
+                unset($trial['offhand']);
+            }
+            $after = Stats::derived($stats, $level, array_values($trial), $balance, (int) $char['injury_severity'], [], $bonus);
+            $delta = [];
+            foreach ($keys as $key) {
+                $change = round($after[$key] - $current[$key], 4);
+                if ($change != 0) {
+                    $delta[$key] = $change;
+                }
+            }
+            $item['delta'] = $delta;
+        }
+        unset($item);
+
+        return [
+            'rowVersion' => (int) $char['row_version'],
+            'injury' => (int) $char['injury_severity'],
+            'equipment' => (object) $equipment,
+            'inventory' => $inventory,
+            'consumables' => $this->consumables($cid),
+            'chests' => $this->sealedChests($cid),
+            'capacity' => (int) $balance['loot']['inventory_capacity'],
+            'beltSlots' => (int) $balance['combat']['belt_slots'],
         ];
     }
 
@@ -512,9 +901,10 @@ class GameQueries
             'ledger' => DB::table('shop_transactions as st')
                 ->leftJoin('item_instances as ii', 'ii.id', '=', 'st.item_instance_id')
                 ->leftJoin('consumable_templates as ct', 'ct.id', '=', 'st.consumable_id')
+                ->leftJoin('premium_items as pi', 'pi.id', '=', 'st.premium_item_id')
                 ->where('st.character_id', $cid)->orderByDesc('st.id')->limit(12)
                 ->get(['st.id', 'st.actor', 'st.action', 'st.quantity', 'st.gold_delta', 'st.gold_after', 'st.created_at',
-                    'ii.display_name', 'ct.name as cons_name'])
+                    'ii.display_name', 'ct.name as cons_name', 'pi.name as premium_name'])
                 ->map(fn ($t) => [
                     'id' => (int) $t->id,
                     'actor' => $t->actor,
@@ -522,7 +912,83 @@ class GameQueries
                     'quantity' => (int) $t->quantity,
                     'gold_delta' => (int) $t->gold_delta,
                     'gold_after' => (int) $t->gold_after,
-                    'what' => $t->display_name ?? $t->cons_name ?? '—',
+                    'what' => $t->display_name ?? $t->cons_name ?? $t->premium_name ?? '—',
+                    'created_at' => self::utc($t->created_at),
+                ])->all(),
+        ];
+    }
+
+    public const PREMIUM_DELTA_KEYS = ['hp', 'attack', 'defense', 'mres', 'crit', 'crit_mult', 'dodge', 'speed', 'luck', 'gold_find', 'lifesteal', 'penetration', 'dmg_reduction', 'xp_mult'];
+
+    public function premiumPage(int $accountId): array
+    {
+        $balance = Balance::get();
+        $char = $this->character($accountId);
+        $cid = (int) $char['id'];
+        $level = (int) $char['level'];
+        $stats = $this->stats($char);
+        $gear = array_values($this->equipment($cid));
+        $growth = $this->growthState($cid);
+        $premium = $this->premiumState($char);
+        $catalog = $this->premiumCatalog();
+        $current = Stats::derived($stats, $level, $gear, $balance, 0, [], $this->bonusFor($growth, $premium, $balance));
+
+        $items = [];
+        foreach ($catalog as $item) {
+            if (! $item['is_active']) {
+                continue;
+            }
+            $owned = in_array($item['code'], $premium['owned'], true);
+            $worn = ($premium['equipped'][$item['category']] ?? null) === $item['code'];
+            $delta = [];
+            if ($item['category'] !== Premium::BUNDLE && ! $worn) {
+                $trial = $premium;
+                Premium::wear($trial, $item['code'], $catalog);
+                $after = Stats::derived($stats, $level, $gear, $balance, 0, [], $this->bonusFor($growth, $trial, $balance));
+                foreach (self::PREMIUM_DELTA_KEYS as $key) {
+                    $change = round($after[$key] - $current[$key], 4);
+                    if ($change != 0) {
+                        $delta[$key] = $change;
+                    }
+                }
+            }
+            [$canBuy, $why] = Premium::canBuy($item, $premium);
+            $items[] = self::premiumView($item) + [
+                'owned' => $owned,
+                'worn' => $worn,
+                'can_buy' => $canBuy,
+                'buy_note' => $owned && $item['category'] !== Premium::BUNDLE ? null : $why,
+                'delta' => (object) $delta,
+            ];
+        }
+
+        return [
+            'rowVersion' => (int) $char['row_version'],
+            'cash' => $premium['cash'],
+            'cashLabel' => Premium::money($premium['cash']),
+            'startingCash' => Premium::money((int) $balance['premium']['starting_cash_cents']),
+            'gold' => (int) $char['gold'],
+            'power' => $this->powerFor($level, $growth, $premium, $balance),
+            'premiumPower' => Premium::power($premium['gear']),
+            'categories' => [...$balance['premium']['categories'], Premium::BUNDLE],
+            'items' => $items,
+            'appearance' => $this->appearance($premium),
+            'bonus' => (object) array_filter(Premium::bonuses($premium['gear'])),
+            'name' => $char['name'],
+            'level' => $level,
+            'ledger' => DB::table('shop_transactions as st')
+                ->join('premium_items as pi', 'pi.id', '=', 'st.premium_item_id')
+                ->where('st.character_id', $cid)->where('st.action', 'premium')
+                ->orderByDesc('st.id')->limit(12)
+                ->get(['st.id', 'st.actor', 'st.cash_delta', 'st.cash_after', 'st.gold_delta', 'st.created_at', 'pi.name', 'pi.glyph'])
+                ->map(fn ($t) => [
+                    'id' => (int) $t->id,
+                    'actor' => $t->actor,
+                    'what' => $t->name,
+                    'glyph' => $t->glyph,
+                    'cash' => Premium::money(abs((int) $t->cash_delta)),
+                    'cash_after' => Premium::money((int) $t->cash_after),
+                    'gold_delta' => (int) $t->gold_delta,
                     'created_at' => self::utc($t->created_at),
                 ])->all(),
         ];
@@ -543,7 +1009,7 @@ class GameQueries
             ->orderBy('m.level')->get(['pm.place_id', 'm.name', 'm.level', 'm.damage_type']) as $m) {
             $monsters[(int) $m->place_id][] = ['name' => $m->name, 'level' => (int) $m->level, 'damage_type' => $m->damage_type];
         }
-        $bosses = DB::table('monsters')->where('is_boss', 1)->get(['id', 'name', 'level'])->keyBy('id');
+        $bosses = DB::table('monsters')->where('is_boss', 1)->get(['id', 'name', 'level', 'damage_type'])->keyBy('id');
         $order = $this->pendingOrder($cid);
 
         $regions = DB::table('regions')->orderBy('sort_order')->orderBy('id')->get()
@@ -561,15 +1027,21 @@ class GameQueries
             ->map(function ($p) use ($level, $history, $monsters, $bosses) {
                 $place = (array) $p;
                 [$ok, $reason] = Rules::canEnter($level, $place);
+                $boss = $place['boss_monster_id'] ? $bosses->get($place['boss_monster_id']) : null;
                 $warning = null;
                 if ($ok && $place['place_type'] !== 'rest') {
                     if ($level < (int) $place['rec_min_level']) {
                         $warning = "Recommended Lv {$place['rec_min_level']}–{$place['rec_max_level']}: expect heavy losses.";
                     } elseif ($level > (int) $place['rec_max_level']) {
                         $warning = 'You out-level this place: low XP here.';
+                    } elseif ($boss && $level < (int) $boss->level - 4) {
+                        $warning = "The boss is Lv {$boss->level}. Clearing this at Lv {$level} is a hard fight unless your gear is ahead.";
                     }
                 }
-                $boss = $place['boss_monster_id'] ? $bosses->get($place['boss_monster_id']) : null;
+                $denizens = $monsters[(int) $place['id']] ?? [];
+                if ($boss && ! in_array($boss->name, array_column($denizens, 'name'), true)) {
+                    $denizens[] = ['name' => $boss->name, 'level' => (int) $boss->level, 'damage_type' => $boss->damage_type];
+                }
 
                 return [
                     'id' => (int) $place['id'],
@@ -593,7 +1065,7 @@ class GameQueries
                     'open' => $ok,
                     'locked_reason' => $ok ? null : Rules::rejectMessage($level, $place, $reason),
                     'warning' => $warning,
-                    'monsters' => $monsters[(int) $place['id']] ?? [],
+                    'monsters' => $denizens,
                     'history' => $history[(int) $place['id']] ?? ['trips' => 0, 'clears' => 0, 'defeats' => 0],
                 ];
             })->all();
@@ -814,6 +1286,7 @@ class GameQueries
     {
         $orders = [
             'level' => [['level', 'desc'], ['total_xp', 'desc']],
+            'power' => null,
             'gold' => [['gold', 'desc']],
             'bosses' => [['boss_kills', 'desc']],
             'clears' => [['trips_cleared', 'desc']],
@@ -821,18 +1294,29 @@ class GameQueries
             'kills' => [['kills', 'desc']],
         ];
         $sort = array_key_exists($sort, $orders) ? $sort : 'level';
-        $query = DB::table('v_leaderboard');
-        foreach ($orders[$sort] as [$column, $dir]) {
-            $query->orderBy($column, $dir);
+        $balance = Balance::get();
+        $query = DB::table('v_leaderboard as v')
+            ->join('characters as c', 'c.id', '=', 'v.id')
+            ->select('v.*', 'c.skills', 'c.horcrux_tier', 'c.premium', 'c.premium_cash');
+        foreach ($orders[$sort] ?? [['level', 'desc'], ['total_xp', 'desc']] as [$column, $dir]) {
+            $query->orderBy("v.{$column}", $dir);
         }
+        $rows = $query->orderBy('v.name')->get()->map(function ($r) use ($balance) {
+            $ranks = [];
+            foreach (self::json($r->skills ?? null) ?: [] as $code => $rank) {
+                $ranks[$code] = (int) $rank;
+            }
+            $premium = $this->premiumState($r);
+            $look = $this->appearance($premium);
 
-        return [
-            'sort' => $sort,
-            'rows' => $query->orderBy('name')->get()->map(fn ($r) => [
+            return [
                 'id' => (int) $r->id,
                 'name' => $r->name,
+                'title' => $look['title'],
+                'glyphs' => array_values(array_map(fn ($g) => $g['glyph'], array_filter($look['gear'], fn ($g) => $g['category'] !== 'title'))),
                 'is_bot' => (bool) $r->is_bot,
                 'level' => (int) $r->level,
+                'power' => Growth::powerLevel((int) $r->level, $ranks, (int) $r->horcrux_tier, $balance, Premium::power($premium['gear'])),
                 'total_xp' => (int) $r->total_xp,
                 'gold' => (int) $r->gold,
                 'kills' => (int) $r->kills,
@@ -840,7 +1324,15 @@ class GameQueries
                 'trips_cleared' => (int) $r->trips_cleared,
                 'defeats' => (int) $r->defeats,
                 'best_place' => $r->best_place,
-            ])->all(),
+            ];
+        })->all();
+        if ($sort === 'power') {
+            usort($rows, fn ($a, $b) => $b['power'] <=> $a['power'] ?: strcmp($a['name'], $b['name']));
+        }
+
+        return [
+            'sort' => $sort,
+            'rows' => $rows,
         ];
     }
 
@@ -850,7 +1342,7 @@ class GameQueries
             ->where('c.is_bot', 1)->orderBy('c.id')
             ->get(['c.id', 'c.name', 'c.level', 'c.gold', 'c.kills', 'c.boss_kills', 'c.trips_cleared', 'c.defeats',
                 'c.injury_severity', 'c.stat_str', 'c.stat_dex', 'c.stat_int', 'c.stat_vit', 'c.stat_luk',
-                'bp.archetype', 'bp.description', 'bp.name as profile_name', 'bp.preferred_scaling', 'bp.risk_offset',
+                'c.premium', 'c.premium_cash', 'bp.archetype', 'bp.description', 'bp.name as profile_name', 'bp.preferred_scaling', 'bp.risk_offset',
                 'bp.buff_preference']);
         $ids = $bots->pluck('id')->all();
         $decisions = DB::table('bot_decisions')->whereIn('character_id', $ids)->orderByDesc('id')->limit(count($ids) * 4)
@@ -861,12 +1353,15 @@ class GameQueries
 
         return $bots->map(function ($b) use ($decisions, $lastTrips) {
             $last = $lastTrips->get($b->id);
+            $premium = $this->premiumState($b);
 
             return [
                 'id' => (int) $b->id,
                 'name' => $b->name,
                 'level' => (int) $b->level,
                 'gold' => (int) $b->gold,
+                'cash' => $premium['cash'],
+                'appearance' => $this->appearance($premium),
                 'kills' => (int) $b->kills,
                 'boss_kills' => (int) $b->boss_kills,
                 'trips_cleared' => (int) $b->trips_cleared,

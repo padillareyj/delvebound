@@ -1,14 +1,20 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import clsx from 'clsx';
 import { Bot, Crown, Medal } from 'lucide-react';
+import { GearGlyphs, TitleBadge } from '@/components/Premium';
+import SectionNav from '@/components/SectionNav';
 import { Gold, PageHeader, Panel } from '@/components/ui';
-import type { SharedProps } from '@/types';
+import { RANKS_NAV } from '@/lib/nav';
+import type { PremiumPiece, SharedProps } from '@/types';
 
 interface Row {
     id: number;
     name: string;
+    title: PremiumPiece | null;
+    glyphs: string[];
     is_bot: boolean;
     level: number;
+    power: number;
     total_xp: number;
     gold: number;
     kills: number;
@@ -20,6 +26,7 @@ interface Row {
 
 const SORTS = [
     { key: 'level', label: 'Level' },
+    { key: 'power', label: 'Power' },
     { key: 'gold', label: 'Gold' },
     { key: 'bosses', label: 'Bosses' },
     { key: 'clears', label: 'Clears' },
@@ -34,6 +41,7 @@ export default function Leaderboard({ sort, rows }: { sort: string; rows: Row[] 
     return (
         <>
             <Head title="Leaderboard" />
+            <SectionNav entry={RANKS_NAV} />
             <PageHeader title="Hall of Lanterns" subtitle="Every adventurer in the realm, human and otherwise.">
                 <div className="flex flex-wrap rounded-lg border border-ink-700 bg-ink-900/60 p-1">
                     {SORTS.map((s) => (
@@ -57,6 +65,7 @@ export default function Leaderboard({ sort, rows }: { sort: string; rows: Row[] 
                                 <th className="w-12 px-4 py-3">#</th>
                                 <th className="px-4 py-3">Adventurer</th>
                                 <th className="px-4 py-3 text-right">Level</th>
+                                <th className="px-4 py-3 text-right">Power</th>
                                 <th className="px-4 py-3 text-right">Gold</th>
                                 <th className="px-4 py-3 text-right">Kills</th>
                                 <th className="px-4 py-3 text-right">Bosses</th>
@@ -67,16 +76,30 @@ export default function Leaderboard({ sort, rows }: { sort: string; rows: Row[] 
                         </thead>
                         <tbody className="divide-y divide-ink-800">
                             {rows.map((r, i) => (
-                                <tr key={r.id} className={clsx('transition hover:bg-ink-800/50', r.id === hero?.id && 'bg-lantern-400/[0.06]')}>
+                                <tr
+                                    key={r.id}
+                                    className={clsx('cursor-pointer transition hover:bg-ink-800/50', r.id === hero?.id && 'bg-lantern-400/[0.06]')}
+                                    onClick={(e) => {
+                                        if ((e.target as HTMLElement).closest('a')) return;
+                                        router.visit(`/leaderboard/${r.id}?sort=${sort}`);
+                                    }}
+                                >
                                     <td className="px-4 py-3 font-display font-bold">
                                         {i < 3 ? <Medal className={clsx('size-5', PODIUM[i])} /> : <span className="text-ink-500">{i + 1}</span>}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={clsx('font-semibold', r.id === hero?.id ? 'text-lantern-200' : 'text-ink-100')}>{r.name}</span>
+                                        <Link href={`/leaderboard/${r.id}?sort=${sort}`} className={clsx('font-semibold hover:underline', r.id === hero?.id ? 'text-lantern-200' : 'text-ink-100')}>{r.name}</Link>
                                         {r.is_bot && <Bot className="ml-1.5 inline size-3.5 text-ink-500" aria-label="bot" />}
                                         {r.id === hero?.id && <span className="ml-2 text-[10px] font-bold text-lantern-400 uppercase">you</span>}
+                                        {(r.title || r.glyphs.length > 0) && (
+                                            <div className="mt-0.5 flex items-center gap-2">
+                                                <TitleBadge title={r.title} />
+                                                <GearGlyphs glyphs={r.glyphs} />
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-right font-bold tabular-nums">{r.level}</td>
+                                    <td className="px-4 py-3 text-right font-bold tabular-nums text-lantern-200">{r.power}</td>
                                     <td className="px-4 py-3 text-right"><Gold amount={r.gold} /></td>
                                     <td className="px-4 py-3 text-right tabular-nums">{r.kills}</td>
                                     <td className="px-4 py-3 text-right tabular-nums">

@@ -1,7 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import clsx from 'clsx';
-import { ArrowRight, Compass, Flame, Mail, Repeat, Skull, Sparkles, Swords, Tent } from 'lucide-react';
-import { slotGlyph } from '@/components/ItemCard';
+import { ArrowRight, Bot, Compass, Flame, Mail, Repeat, Skull, Sparkles, Swords, Tent } from 'lucide-react';
+import { ItemGlyph } from '@/components/ItemGlyph';
 import { Bar, Empty, Gold, OutcomeChip, Panel, StatTile } from '@/components/ui';
 import { DERIVED_LABELS, PLACE_ICONS, SLOT_LABELS, derivedValue, formatDateTime, timeAgo, useTimezone } from '@/lib/format';
 import type { Consumable, Derived, Item, MailRow, NextDestination, Order, SharedProps, TripRow } from '@/types';
@@ -24,6 +24,8 @@ const NEXT_META: Record<NextDestination['kind'], { icon: typeof Compass; tone: s
     repeat: { icon: Repeat, tone: 'text-arcane-400', note: 'Auto-repeat will send you back to your last destination.' },
     rest: { icon: Tent, tone: 'text-frost-400', note: 'No order placed, so you will rest in town.' },
     blocked: { icon: Flame, tone: 'text-blood-400', note: 'You are badly wounded and must rest in town for one run.' },
+    auto: { icon: Bot, tone: 'text-arcane-400', note: 'Auto mode will spend points, equip gear, shop, and pick the destination when the run starts.' },
+    auto_best: { icon: Bot, tone: 'text-arcane-400', note: 'Auto mode will spend points, equip gear, and shop, then take the hardest place your current stats can clear. A trip that looks like a defeat waits in town.' },
 };
 
 export default function Dashboard(props: Props) {
@@ -90,7 +92,7 @@ export default function Dashboard(props: Props) {
                                     <li key={t.id}>
                                         <Link href={`/trips/${t.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-ink-800/60 sm:gap-4">
                                             <span className="hidden size-10 shrink-0 place-items-center rounded-lg bg-ink-900 text-xl sm:grid">
-                                                {PLACE_ICONS[placeTypeGuess(t.place_code)] ?? '🗺️'}
+                                                {PLACE_ICONS[t.place_type] ?? PLACE_ICONS[placeTypeGuess(t.place_code)] ?? '🗺️'}
                                             </span>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center gap-2">
@@ -156,12 +158,12 @@ export default function Dashboard(props: Props) {
                                             item ? 'border-ink-600 bg-ink-800' : 'border-dashed border-ink-700 bg-ink-950/40 opacity-40',
                                         )}
                                     >
-                                        {slotGlyph(slot)}
+                                        <ItemGlyph slot={item?.template_slot ?? slot} itemType={item?.item_type} twoHanded={item?.two_handed} className="size-5" />
                                     </div>
                                 );
                             })}
-                            <Link href="/pack" className="grid aspect-square place-items-center rounded-lg border border-ink-700 text-xs text-ink-400 hover:border-lantern-400/50 hover:text-lantern-200">
-                                Pack
+                            <Link href="/character?tab=inventory" className="grid aspect-square place-items-center rounded-lg border border-ink-700 text-xs text-ink-400 hover:border-lantern-400/50 hover:text-lantern-200">
+                                Inventory
                             </Link>
                         </div>
                     </Panel>
@@ -169,7 +171,7 @@ export default function Dashboard(props: Props) {
                     <Panel title="Belt" action={<span className="text-xs text-ink-400 tabular-nums">{beltCount}/{props.beltSlots}</span>}>
                         {props.belt.length === 0 ? (
                             <p className="text-sm text-ink-400">
-                                Your belt is empty. <Link href="/pack" className="link">Pack potions</Link> before you set off.
+                                Your belt is empty. <Link href="/character?tab=inventory" className="link">Pack potions</Link> before you set off.
                             </p>
                         ) : (
                             <ul className="space-y-1.5">

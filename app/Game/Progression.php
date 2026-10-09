@@ -7,7 +7,9 @@ final class Progression
 {
     public static function xpToNext(int $level, array $balance): int
     {
-        $raw = $balance['xp']['base'] * ($level ** $balance['xp']['exponent']);
+        $raw = $balance['xp']['base']
+            * ($level ** $balance['xp']['exponent'])
+            * ((1 + $balance['xp']['growth']) ** ($level - 1));
 
         return Numbers::roundTo($raw, (int) $balance['xp']['round_to']);
     }
@@ -20,6 +22,17 @@ final class Progression
         }
 
         return $points;
+    }
+
+    /** XP already spent to arrive at this level (0 at level 1). */
+    public static function xpSpentToReach(int $level, array $balance): int
+    {
+        $total = 0;
+        for ($at = 1; $at < $level; $at++) {
+            $total += self::xpToNext($at, $balance);
+        }
+
+        return $total;
     }
 
     public static function pointPool(int $level, array $balance): int
@@ -38,6 +51,15 @@ final class Progression
         $factor = Numbers::clamp($factor, $balance['xp']['diff_min'], $balance['xp']['diff_max']);
 
         return Numbers::halfUp($baseXp * $factor);
+    }
+
+    /**
+     * The authored cap in balance.json is the floor. A generated region raises it to that
+     * region's highest recommended level (DESIGN.md §5.1, §7.1).
+     */
+    public static function levelCap(array $balance, int $contentCeiling): int
+    {
+        return max((int) $balance['character']['level_cap'], $contentCeiling);
     }
 
     /** @return array{level: int, xp: int, points: int, gold: int, levels: list<array{level: int, points: int, gold: int}>} */

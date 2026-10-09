@@ -76,7 +76,7 @@ function Reveal({ chest, shown, ready, onClose }: { chest: OpenedChest; shown: n
                             RARITY_GLOW[item.rarity],
                         )}
                     >
-                        <span className="text-2xl">{slotGlyph(item.slot)}</span>
+                        <span className="text-ink-100">{slotGlyph(item.slot, 'size-8')}</span>
                         <span className="min-w-0 flex-1">
                             <RarityName name={item.name} rarity={item.rarity} className="block truncate font-semibold" />
                             <span className="text-[11px] tracking-wide text-ink-400 uppercase">ilvl {item.item_level}</span>

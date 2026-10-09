@@ -77,11 +77,18 @@ const PARCHMENT: Record<string, string> = {
     ashen_crown: 'parchment parchment-ash',
 };
 
+const PARCHMENT_CYCLE = ['parchment', 'parchment parchment-salt', 'parchment parchment-ash'];
+
+function parchmentClass(code: string, index: number): string {
+    return PARCHMENT[code] ?? PARCHMENT_CYCLE[index % PARCHMENT_CYCLE.length];
+}
+
 export default function MapPage({ level, regions, places, order, next, lastPlaceId }: Props) {
     const initial = places.find((p) => p.id === order?.place_id) ?? places.find((p) => p.id === lastPlaceId) ?? places[0];
     const [regionCode, setRegionCode] = useState(initial?.region_code ?? regions[0]?.code);
     const [selectedId, setSelectedId] = useState<number | undefined>(initial?.id);
     const region = regions.find((r) => r.code === regionCode) ?? regions[0];
+    const regionIndex = Math.max(0, regions.findIndex((r) => r.code === region?.code));
     const shown = places.filter((p) => p.region_code === region?.code);
     const selected = places.find((p) => p.id === selectedId);
     const anchor = shown.find((p) => p.place_type === 'rest') ?? [...shown].sort((a, b) => a.min_level - b.min_level)[0];
@@ -129,7 +136,7 @@ export default function MapPage({ level, regions, places, order, next, lastPlace
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_22rem]">
-                <div className={clsx(PARCHMENT[region?.code ?? 'wilds'] ?? 'parchment', 'relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-ink-700 shadow-2xl sm:aspect-[16/10]')}>
+                <div className={clsx(parchmentClass(region?.code ?? 'wilds', regionIndex), 'relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-ink-700 shadow-2xl sm:aspect-[16/10]')}>
                     <svg className="absolute inset-0 size-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                         <defs>
                             <pattern id="grid" width="5" height="5" patternUnits="userSpaceOnUse">

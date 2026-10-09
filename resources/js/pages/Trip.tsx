@@ -52,6 +52,7 @@ function buildFrames(enc: Encounter, heroName: string): Frame[] {
         if (ev.ev === 'hit' && ev.t !== undefined && ev.thp !== undefined) {
             if (ev.t === heroName) cur.hero = ev.thp;
             else if (ev.t in cur.monsters) cur.monsters[ev.t] = ev.thp;
+            if (ev.a === heroName && ev.ahp !== undefined) cur.hero = ev.ahp;
         } else if ((ev.ev === 'potion' || ev.ev === 'potion_topup') && ev.thp !== undefined) {
             cur.hero = ev.thp;
         }
@@ -66,7 +67,7 @@ function narrate(ev: LogEvent, heroName: string, labels: Record<string, string>)
         case 'hit': {
             const heroHit = ev.a === heroName;
             return {
-                text: `${n(ev.a)} ${ev.crit ? 'lands a CRITICAL hit on' : 'hits'} ${n(ev.t)} for ${ev.dmg}.${ev.thp === 0 ? ` ${n(ev.t)} falls!` : ''}`,
+                text: `${n(ev.a)} ${ev.crit ? 'lands a CRITICAL hit on' : 'hits'} ${n(ev.t)} for ${ev.dmg}.${ev.heal ? ` Lifesteal +${ev.heal} HP.` : ''}${ev.thp === 0 ? ` ${n(ev.t)} falls!` : ''}`,
                 tone: ev.crit ? 'text-lantern-300 font-semibold' : heroHit ? 'text-ink-100' : 'text-blood-400',
             };
         }
@@ -84,6 +85,8 @@ function narrate(ev: LogEvent, heroName: string, labels: Record<string, string>)
             return { text: `Too hurt to press on, ${heroName} turns back toward Lanternford.`, tone: 'text-lantern-300' };
         case 'loot':
             return { text: `${n(ev.t)} drops ${ev.name}.`, tone: 'text-lantern-200 font-semibold' };
+        case 'mat':
+            return { text: `${n(ev.t)} drops ${ev.name} ×${ev.qty}.`, tone: 'text-frost-400' };
         default:
             return { text: JSON.stringify(ev), tone: 'text-ink-400' };
     }
@@ -132,6 +135,7 @@ export default function TripPage({ trip }: { trip: Trip }) {
                 bumpAnim(unitOf(ev.a), 'lunge');
                 bumpAnim(unitOf(ev.t), ev.crit ? 'crit' : 'hit');
                 pops.push({ unit: unitOf(ev.t), text: ev.crit ? `${ev.dmg}!` : `-${ev.dmg}`, kind: ev.crit ? 'crit' : 'dmg' });
+                if (ev.heal) pops.push({ unit: unitOf(ev.a), text: `+${ev.heal}`, kind: 'heal' });
             } else if (ev.ev === 'dodge') {
                 bumpAnim(unitOf(ev.a), 'lunge');
                 pops.push({ unit: unitOf(ev.t), text: 'MISS', kind: 'miss' });
@@ -144,6 +148,8 @@ export default function TripPage({ trip }: { trip: Trip }) {
                 pops.push({ unit: HERO, text: 'BLOCKED', kind: 'info' });
             } else if (ev.ev === 'loot') {
                 pops.push({ unit: unitOf(ev.t), text: '✦ LOOT', kind: 'info' });
+            } else if (ev.ev === 'mat') {
+                pops.push({ unit: unitOf(ev.t), text: ev.name ?? 'material', kind: 'info' });
             }
             if (Object.keys(next).length) setAnims((a) => ({ ...a, ...next }));
             if (pops.length) {
@@ -442,7 +448,7 @@ export default function TripPage({ trip }: { trip: Trip }) {
                                     </ul>
                                 )}
                                 {finished && trip.chest?.status === 'sealed' && (
-                                    <Link href="/pack" className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-lantern-500/40 bg-lantern-500/10 px-3 py-2 text-sm">
+                                    <Link href="/character?tab=inventory" className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-lantern-500/40 bg-lantern-500/10 px-3 py-2 text-sm">
                                         <span>🧰 Sealed chest · {trip.chest.rolls} {trip.chest.rolls === 1 ? 'roll' : 'rolls'}</span>
                                         <span className="text-lantern-300">Open</span>
                                     </Link>

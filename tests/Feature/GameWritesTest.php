@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Game\Balance;
+use App\Game\Forge;
 use App\Models\Account;
+use App\Services\ForgeService;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +46,57 @@ class GameWritesTest extends TestCase
     public function test_csrf_protection_is_on_for_web_routes(): void
     {
         $this->assertContains(ValidateCsrfToken::class, app(Kernel::class)->getMiddlewareGroups()['web']);
+    }
+
+    public function test_auto_mode_saves_a_personality(): void
+    {
+        $this->actingAs($this->account)
+            ->post('/character/prep', [
+                'retreat_threshold_pct' => 25,
+                'potion_threshold_pct' => 40,
+                'auto_repeat' => 1,
+                'auto_mode' => 1,
+                'auto_profile' => 'shade',
+                'auto_place' => 'profile',
+                'row_version' => $this->version(),
+            ])
+            ->assertSessionHas('success');
+
+        $char = $this->fresh();
+        $this->assertSame(1, (int) $char['auto_mode']);
+        $this->assertSame(
+            (int) DB::table('bot_profiles')->where('code', 'shade')->value('id'),
+            (int) $char['auto_profile_id'],
+        );
+        $this->assertSame(0, (int) $char['is_bot']);
+        $this->assertSame('profile', $char['auto_place']);
+
+        $this->actingAs($this->account)
+            ->post('/character/prep', [
+                'retreat_threshold_pct' => 25,
+                'potion_threshold_pct' => 40,
+                'auto_repeat' => 1,
+                'auto_mode' => 1,
+                'auto_profile' => 'shade',
+                'auto_place' => 'best',
+                'row_version' => $this->version(),
+            ])
+            ->assertSessionHas('success');
+        $this->assertSame('best', $this->fresh()['auto_place']);
+
+        $this->actingAs($this->account)
+            ->post('/character/prep', [
+                'retreat_threshold_pct' => 25,
+                'potion_threshold_pct' => 40,
+                'auto_repeat' => 1,
+                'auto_mode' => 1,
+                'auto_profile' => 'not-a-rival',
+                'auto_place' => 'best',
+                'row_version' => $this->version(),
+            ])
+            ->assertSessionHas('error');
+        $this->assertSame(1, (int) $this->fresh()['auto_mode']);
+        $this->assertSame('best', $this->fresh()['auto_place']);
     }
 
     public function test_spending_points_checks_the_row_version(): void
@@ -91,6 +145,41 @@ class GameWritesTest extends TestCase
 
         $this->actingAs($this->account)->delete('/map/order')->assertSessionHas('success');
         $this->assertFalse(DB::table('trip_orders')->where('character_id', $this->character['id'])->where('status', 'pending')->exists());
+
+        DB::table('characters')->where('id', $this->character['id'])->update(['level' => 12]);
+        $this->actingAs($this->account)->post('/map/order', ['place_id' => $greenwood])->assertSessionHas('success');
+    }
+
+    public function test_a_skill_rank_spends_dust_and_the_horcrux_eats_spare_gear(): void
+    {
+        DB::table('characters')->where('id', $this->character['id'])->update([
+            'gold' => 200,
+            'materials' => json_encode(['spark_dust' => 2]),
+        ]);
+        $this->actingAs($this->account)
+            ->post('/character/skills/keen_edge', ['row_version' => $this->version()])
+            ->assertSessionHas('success');
+        $fresh = $this->fresh();
+        $this->assertSame(1, (int) (json_decode($fresh['skills'], true)['keen_edge'] ?? 0));
+        $this->assertSame(160, (int) $fresh['gold']);
+        $this->assertSame([], json_decode($fresh['materials'] ?? '[]', true) ?: []);
+
+        $template = (int) DB::table('item_templates')->where('code', 'cloth_tunic')->value('id');
+        $itemId = DB::table('item_instances')->insertGetId([
+            'template_id' => $template,
+            'character_id' => $this->character['id'],
+            'status' => 'owned',
+            'rarity' => 'common',
+            'item_level' => 1,
+            'display_name' => 'Spare Tunic',
+            'sell_value' => 5,
+            'source' => 'drop',
+        ]);
+        $this->actingAs($this->account)
+            ->post('/character/horcrux', ['item_id' => $itemId, 'row_version' => $this->version()])
+            ->assertSessionHas('success');
+        $this->assertSame('destroyed', DB::table('item_instances')->where('id', $itemId)->value('status'));
+        $this->assertGreaterThan(0, (int) $this->fresh()['horcrux_progress']);
     }
 
     public function test_market_belt_and_selling(): void
@@ -200,6 +289,88 @@ class GameWritesTest extends TestCase
         } finally {
             config(['database.default' => $previous]);
         }
+    }
+
+    public function test_the_forge_consumes_two_pieces_and_records_the_gold(): void
+    {
+        DB::table('characters')->where('id', $this->character['id'])->update(['gold' => 500, 'stat_luk' => 0]);
+        $left = $this->spare('weapon', 'common', 1);
+        $right = $this->spare('weapon', 'rare', 3);
+        $helm = $this->spare('head', 'common', 1);
+        $quote = Forge::quote(
+            ['id' => $left, 'slot' => 'weapon', 'rarity' => 'common', 'item_level' => 1, 'equipped' => false],
+            ['id' => $right, 'slot' => 'weapon', 'rarity' => 'rare', 'item_level' => 3, 'equipped' => false],
+            500,
+            0,
+            Balance::get(),
+        );
+
+        $this->actingAs($this->account)
+            ->post('/pack/forge', ['item_a' => $left, 'item_b' => $helm, 'row_version' => $this->version()])
+            ->assertSessionHas('error', 'Both pieces have to be the same slot.');
+        $this->assertSame('owned', DB::table('item_instances')->where('id', $left)->value('status'));
+
+        $worn = (int) DB::table('character_equipment')->where('character_id', $this->character['id'])->where('slot', 'weapon')->value('item_instance_id');
+        $this->actingAs($this->account)
+            ->post('/pack/forge', ['item_a' => $worn, 'item_b' => $right, 'row_version' => $this->version()])
+            ->assertSessionHas('error');
+        $this->assertSame('owned', DB::table('item_instances')->where('id', $worn)->value('status'));
+
+        [, $mira] = $this->makePlayer('mira');
+        $foreign = (int) DB::table('item_instances')->where('character_id', $mira['id'])->value('id');
+        $this->actingAs($this->account)
+            ->post('/pack/forge', ['item_a' => $foreign, 'item_b' => $right, 'row_version' => $this->version()])
+            ->assertSessionHas('error');
+        $this->assertSame((int) $mira['id'], (int) DB::table('item_instances')->where('id', $foreign)->value('character_id'));
+
+        $result = app(ForgeService::class)->combine((int) $this->account->id, $this->version(), $left, $right, 7);
+        $char = $this->fresh();
+        $this->assertSame(500 - $quote['gold'], (int) $char['gold']);
+        $this->assertSame('destroyed', DB::table('item_instances')->where('id', $left)->value('status'));
+        $this->assertSame('destroyed', DB::table('item_instances')->where('id', $right)->value('status'));
+        $this->assertNull(DB::table('item_instances')->where('id', $left)->value('character_id'));
+        $ledger = DB::table('shop_transactions')->where('character_id', $char['id'])->where('action', 'craft')->first();
+        $this->assertNotNull($ledger);
+        $this->assertSame(-1 * $quote['gold'], (int) $ledger->gold_delta);
+        $this->assertSame((int) $char['gold'], (int) $ledger->gold_after);
+
+        if ($result['outcome'] === 'fail') {
+            $this->assertNull($ledger->item_instance_id);
+            $this->assertSame('The forge cracks. Both pieces are lost.', $result['message']);
+            $this->assertNull($result['item']);
+        } else {
+            $this->assertSame((int) $ledger->item_instance_id, $result['item']['id']);
+            $made = DB::table('item_instances')->where('id', $ledger->item_instance_id)->first();
+            $this->assertSame('craft', $made->source);
+            $this->assertSame('owned', $made->status);
+            $this->assertSame((int) $char['id'], (int) $made->character_id);
+            $this->assertStringContainsString($made->display_name, $result['message']);
+        }
+
+        $againA = $this->spare('weapon');
+        $againB = $this->spare('weapon');
+        DB::connection('admin')->table('simulation_runs')->insert(['status' => 'running', 'seed' => 1]);
+        $this->actingAs($this->account)
+            ->post('/pack/forge', ['item_a' => $againA, 'item_b' => $againB, 'row_version' => $this->version()])
+            ->assertSessionHas('error', 'A simulation run is in progress, try again in a moment.');
+        $this->assertSame('owned', DB::table('item_instances')->where('id', $againA)->value('status'));
+    }
+
+    private function spare(string $slot, string $rarity = 'common', int $ilvl = 1): int
+    {
+        $template = DB::table('item_templates')->where('slot', $slot)->orderBy('req_level')->orderBy('id')->first();
+
+        return (int) DB::table('item_instances')->insertGetId([
+            'template_id' => $template->id,
+            'character_id' => $this->character['id'],
+            'status' => 'owned',
+            'rarity' => $rarity,
+            'item_level' => $ilvl,
+            'display_name' => $template->name,
+            'power' => 1,
+            'sell_value' => 5,
+            'source' => 'drop',
+        ]);
     }
 
     public function test_writes_are_refused_while_a_run_is_running(): void

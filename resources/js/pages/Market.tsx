@@ -2,9 +2,13 @@ import { Head } from '@inertiajs/react';
 import clsx from 'clsx';
 import { Lock, ShoppingBag, Tag } from 'lucide-react';
 import { useState } from 'react';
-import { ItemCard, slotGlyph } from '@/components/ItemCard';
+import { ItemCard } from '@/components/ItemCard';
+import { ItemGlyph } from '@/components/ItemGlyph';
+import SectionNav from '@/components/SectionNav';
 import { Empty, Gold, PageHeader, Panel } from '@/components/ui';
+import { MARKET_NAV } from '@/lib/nav';
 import { act } from '@/lib/act';
+import { confirmDialog } from '@/lib/dialog';
 import { SLOT_LABELS, STAT_NAMES, effectLine, formatDateTime, modLine, useTimezone } from '@/lib/format';
 import type { Consumable, Item, StatKey } from '@/types';
 
@@ -76,6 +80,7 @@ export default function Market(props: Props) {
     return (
         <>
             <Head title="Market" />
+            <SectionNav entry={MARKET_NAV} />
             <PageHeader title="Lanternford Market" subtitle="Old Marrow's stall: potions, tonics, and honest starter steel.">
                 <div className="rounded-lg border border-ink-700 bg-ink-900/60 px-4 py-2">
                     <span className="mr-2 text-xs text-ink-400">Purse</span>
@@ -144,7 +149,9 @@ export default function Market(props: Props) {
                         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                             {gear.map((l) => (
                                 <div key={l.id} className={clsx('flex gap-3 rounded-xl border border-ink-700 bg-ink-900/60 p-3', l.locked && 'opacity-50')}>
-                                    <div className="grid size-12 shrink-0 place-items-center rounded-lg border border-ink-700 bg-ink-950 text-2xl">{slotGlyph(l.slot ?? '')}</div>
+                                    <div className="grid size-12 shrink-0 place-items-center rounded-lg border border-ink-700 bg-ink-950 text-ink-100">
+                                        <ItemGlyph slot={l.slot ?? ''} itemType={l.item_type} twoHanded={l.two_handed} className="size-7" />
+                                    </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-start justify-between gap-2">
                                             <h3 className="truncate font-sans text-sm font-bold tracking-normal text-rarity-common">{l.name}</h3>
@@ -186,10 +193,14 @@ export default function Market(props: Props) {
                                         footer={
                                             <button
                                                 className="btn-ghost w-full py-1.5 text-xs"
-                                                onClick={() => {
-                                                    if (item.rarity === 'common' || window.confirm(`Sell ${item.name} for ${item.sell_value} gold?`)) {
-                                                        act('/market/sell-item', { item_id: item.id, row_version: props.rowVersion });
-                                                    }
+                                                onClick={async () => {
+                                                    const ok = item.rarity === 'common' || await confirmDialog({
+                                                        icon: <Tag className="size-8" />,
+                                                        title: `Sell ${item.name}?`,
+                                                        body: <span className="flex items-center justify-center gap-1">The merchant pays <Gold amount={item.sell_value} /></span>,
+                                                        confirmLabel: 'Sell',
+                                                    });
+                                                    if (ok) act('/market/sell-item', { item_id: item.id, row_version: props.rowVersion });
                                                 }}
                                             >
                                                 <Tag className="size-3.5" /> Sell for <Gold amount={item.sell_value} />

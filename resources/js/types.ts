@@ -3,10 +3,36 @@ export type Stats = Record<StatKey, number>;
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 export type Outcome = 'cleared' | 'retreated' | 'defeated' | 'rested' | 'blocked_injured' | 'order_rejected' | 'champion' | 'eliminated';
 
+export type PremiumCategory = 'title' | 'wings' | 'aura' | 'pet' | 'frame' | 'bundle';
+export type PremiumTier = 'rare' | 'epic' | 'legendary' | 'mythic';
+
+export interface PremiumPiece {
+    code: string;
+    name: string;
+    category: PremiumCategory;
+    tier: PremiumTier;
+    glyph: string;
+    style: string;
+    description: string | null;
+    price_cents: number;
+    price: string;
+    bonuses: Record<string, number>;
+    power: number;
+    grant_gold: number;
+}
+
+export interface Appearance {
+    title: PremiumPiece | null;
+    gear: PremiumPiece[];
+}
+
 export interface Hero {
     id: number;
     name: string;
+    title: PremiumPiece | null;
+    cash: number;
     level: number;
+    power: number;
     xp: number;
     xp_to_next: number | null;
     gold: number;
@@ -41,6 +67,7 @@ export interface SharedProps {
         success: string | null;
         error: string | null;
         openedChest: OpenedChest | null;
+        forged: ForgeResult | null;
     };
     errors: Record<string, string>;
 }
@@ -63,6 +90,13 @@ export interface OpenedChest {
     place: string;
     items: OpenedChestItem[];
     sold: { name: string; sell_value: number }[];
+}
+
+export interface ForgeResult {
+    outcome: 'fail' | 'craft' | 'masterpiece';
+    message: string;
+    gold: number;
+    item: OpenedChestItem | null;
 }
 
 export interface Affix {
@@ -101,6 +135,17 @@ export interface PackItem extends Item {
     can_equip: boolean;
     equip_note: string | null;
     delta: Record<string, number>;
+    feed: number;
+}
+
+export interface ForgeQuote {
+    ok: boolean;
+    reason: string | null;
+    gold: number;
+    chances: { fail: number; craft: number; masterpiece: number } | null;
+    slot: string | null;
+    left_id: number;
+    right_id: number;
 }
 
 export interface Consumable {
@@ -129,12 +174,16 @@ export interface Derived {
     regen?: number;
     luck?: number;
     gold_find?: number;
+    lifesteal?: number;
+    penetration?: number;
+    dmg_reduction?: number;
+    xp_mult?: number;
     damage_type: 'physical' | 'magic';
 }
 
 export interface NextDestination {
     label: string;
-    kind: 'blocked' | 'order' | 'repeat' | 'rest';
+    kind: 'blocked' | 'order' | 'repeat' | 'rest' | 'auto' | 'auto_best';
 }
 
 export interface Order {
@@ -158,6 +207,7 @@ export interface TripRow {
     encounters_won: number;
     place: string;
     place_code: string;
+    place_type: string;
     created_at: string;
 }
 
@@ -176,8 +226,9 @@ export interface MailRow {
 
 export type LogEvent = {
     r?: number;
-    ev: 'hit' | 'dodge' | 'potion' | 'potion_topup' | 'flee' | 'flee_fail' | 'left_early' | 'loot';
+    ev: 'hit' | 'dodge' | 'potion' | 'potion_topup' | 'flee' | 'flee_fail' | 'left_early' | 'loot' | 'mat';
     name?: string;
+    qty?: number;
     rarity?: Rarity;
     a?: string;
     t?: string;
@@ -185,6 +236,7 @@ export type LogEvent = {
     crit?: boolean;
     thp?: number;
     heal?: number;
+    ahp?: number;
     code?: string;
     p?: number;
 };

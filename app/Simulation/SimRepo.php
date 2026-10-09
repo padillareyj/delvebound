@@ -2,7 +2,12 @@
 
 namespace App\Simulation;
 
+use App\Game\Balance;
+use App\Game\Bots\Allocation;
+use App\Game\Bots\Gear;
 use App\Game\Loot;
+use App\Game\Newcomer;
+use App\Game\Premium;
 use App\Game\Rng;
 use App\Game\Rules;
 use Illuminate\Database\Connection;
@@ -47,6 +52,92 @@ final class SimRepo
     public function activeCharacterIds(): array
     {
         return array_map('intval', array_column($this->all('SELECT id FROM characters WHERE is_active = 1 ORDER BY id'), 'id'));
+    }
+
+    /**
+     * Birth one bot for this run, and send each human a system letter.
+     * Returns null when the town is already at newcomers.max_bots.
+     *
+     * @return array{name: string, level: int, archetype: string}|null
+     */
+    public function birthNewcomer(int $seed, int $runId, array $world, array $balance): ?array
+    {
+        $activeBots = (int) $this->one('SELECT COUNT(*) AS n FROM characters WHERE is_bot = 1 AND is_active = 1')['n'];
+        $highest = (int) ($this->one('SELECT MAX(level) AS n FROM characters WHERE is_active = 1')['n'] ?? 1);
+        $profiles = [];
+        foreach ($this->all('SELECT id, archetype, preferred_scaling, retreat_threshold_pct FROM bot_profiles ORDER BY id') as $row) {
+            $profiles[] = [
+                'id' => (int) $row['id'],
+                'archetype' => $row['archetype'],
+                'preferred_scaling' => $row['preferred_scaling'],
+                'retreat_threshold_pct' => (int) $row['retreat_threshold_pct'],
+            ];
+        }
+        $taken = array_column($this->all('SELECT name FROM characters'), 'name');
+        $plan = Newcomer::plan(
+            $activeBots,
+            $highest,
+            $profiles,
+            $taken,
+            array_values($world['templates']),
+            $world['affixes'],
+            Rng::arrival($seed, $activeBots),
+            $balance,
+            $world['legendary_names'] ?? [],
+        );
+        if ($plan === null) {
+            return null;
+        }
+
+        return $this->db->transaction(function () use ($plan, $runId) {
+            $this->db->insert(
+                'INSERT INTO characters (account_id, is_bot, bot_profile_id, name, level, xp, total_xp, gold,
+                    stat_str, stat_dex, stat_int, stat_vit, stat_luk, unspent_points,
+                    retreat_threshold_pct, potion_threshold_pct, auto_repeat, is_active)
+                 VALUES (NULL, 1, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)',
+                [
+                    $plan['profile_id'], $plan['name'], $plan['level'], $plan['total_xp'], $plan['gold'],
+                    $plan['base_stat'], $plan['base_stat'], $plan['base_stat'], $plan['base_stat'], $plan['base_stat'],
+                    $plan['unspent'], $plan['retreat'], $plan['potion'],
+                ],
+            );
+            $characterId = $this->insertId();
+            foreach ($plan['items'] as $item) {
+                $this->db->insert(
+                    'INSERT INTO item_instances (template_id, character_id, status, rarity, item_level, display_name, power, armor, mres,
+                                                  sell_value, source, created_run_id)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                    [
+                        $item['template_id'], $characterId, 'owned', $item['rarity'], $item['item_level'], $item['display_name'],
+                        $item['power'], $item['armor'], $item['mres'], $item['sell_value'], 'starter', $runId,
+                    ],
+                );
+                $this->insertAffixes($this->insertId(), $item['affixes'] ?? []);
+            }
+            $potion = $this->one('SELECT id FROM consumable_templates WHERE code = ?', [$plan['potion_code']]);
+            if ($potion) {
+                $this->db->insert(
+                    'INSERT INTO character_consumables (character_id, consumable_id, quantity, belt_qty) VALUES (?,?,?,?)',
+                    [$characterId, (int) $potion['id'], $plan['potion_qty'], $plan['potion_belt']],
+                );
+            }
+            $payload = self::dumps([
+                'kind' => 'birth',
+                'name' => $plan['name'],
+                'level' => $plan['level'],
+                'archetype' => $plan['archetype'],
+            ]);
+            foreach ($this->all('SELECT id FROM characters WHERE is_bot = 0 AND is_active = 1 ORDER BY id') as $human) {
+                $this->db->insert(
+                    "INSERT INTO mail (character_id, run_id, mail_type, subject, body_text, payload) VALUES (?, ?, 'system', ?, ?, ?)",
+                    [(int) $human['id'], $runId, $plan['subject'], $plan['body'], $payload],
+                );
+            }
+            $total = (int) $this->one('SELECT COUNT(*) AS n FROM characters WHERE is_active = 1')['n'];
+            $this->db->update('UPDATE simulation_runs SET characters_total = ? WHERE id = ?', [$total, $runId]);
+
+            return ['name' => $plan['name'], 'level' => $plan['level'], 'archetype' => $plan['archetype']];
+        });
     }
 
     public function tripExists(int $runId, int $characterId): bool
@@ -125,6 +216,26 @@ final class SimRepo
                 'max_group' => (int) $row['max_group'],
             ];
         }
+        $materialRows = [];
+        foreach ($this->all('SELECT * FROM material_templates ORDER BY sort_order, id') as $row) {
+            $materialRows[(int) $row['id']] = [
+                'code' => $row['code'],
+                'name' => $row['name'],
+                'kind' => $row['kind'],
+                'glyph' => $row['glyph'],
+                'description' => $row['description'],
+            ];
+        }
+        foreach ($places as $pid => $place) {
+            $places[$pid]['materials'] = [];
+        }
+        foreach ($this->all('SELECT * FROM place_materials ORDER BY place_id, material_id') as $row) {
+            $pid = (int) $row['place_id'];
+            $mid = (int) $row['material_id'];
+            if (isset($places[$pid], $materialRows[$mid])) {
+                $places[$pid]['materials'][] = $materialRows[$mid];
+            }
+        }
         $consumables = [];
         foreach ($this->all('SELECT * FROM consumable_templates ORDER BY id') as $row) {
             $consumables[(int) $row['id']] = self::consumableTemplate($row);
@@ -159,14 +270,51 @@ final class SimRepo
             }
         }
 
+        $legendaryNames = [];
+        foreach ($this->all('SELECT * FROM legendary_names ORDER BY id') as $row) {
+            $legendaryNames[] = self::legendaryNameRow($row);
+        }
+
         return [
             'affixes' => $affixes,
+            'legendary_names' => $legendaryNames,
             'templates' => $templates,
             'places' => array_values($places),
             'places_by_id' => $places,
             'town' => $town,
             'shop' => $shop,
             'consumables' => $consumables,
+            'premium' => $this->premiumCatalog(),
+        ];
+    }
+
+    private ?array $premiumCatalog = null;
+
+    /** @return array<string, array> active and retired premium items keyed by code */
+    public function premiumCatalog(): array
+    {
+        if ($this->premiumCatalog === null) {
+            $this->premiumCatalog = [];
+            foreach ($this->all('SELECT * FROM premium_items ORDER BY sort_order, id') as $row) {
+                $this->premiumCatalog[$row['code']] = Premium::row($row);
+            }
+        }
+
+        return $this->premiumCatalog;
+    }
+
+    public static function legendaryNameRow(array $row): array
+    {
+        return [
+            'code' => $row['code'],
+            'kind' => $row['kind'],
+            'name' => $row['name'],
+            'item_type' => $row['item_type'],
+            'slot' => $row['slot'],
+            'stat_key' => $row['stat_key'],
+            'placement' => $row['placement'],
+            'min_ilvl' => (int) $row['min_ilvl'],
+            'weight' => (int) $row['weight'],
         ];
     }
 
@@ -358,9 +506,13 @@ final class SimRepo
                 $commons[] = ['id' => $item['id'], 'sell_value' => $item['sell_value'], 'name' => $item['display_name']];
             }
         }
+        $profileId = $row['bot_profile_id'];
+        if (! $profileId && $row['auto_mode'] && $row['auto_profile_id']) {
+            $profileId = $row['auto_profile_id'];
+        }
         $profile = null;
-        if ($row['bot_profile_id']) {
-            $profile = self::profile($this->one('SELECT * FROM bot_profiles WHERE id = ?', [$row['bot_profile_id']]));
+        if ($profileId) {
+            $profile = self::profile($this->one('SELECT * FROM bot_profiles WHERE id = ?', [$profileId]));
         }
 
         return [
@@ -382,6 +534,8 @@ final class SimRepo
             'retreat_threshold_pct' => (int) $row['retreat_threshold_pct'],
             'potion_threshold_pct' => (int) $row['potion_threshold_pct'],
             'auto_repeat' => (bool) $row['auto_repeat'],
+            'auto_mode' => (bool) $row['auto_mode'],
+            'auto_place' => ($row['auto_place'] ?? 'profile') === 'best' ? 'best' : 'profile',
             'injury_severity' => (int) $row['injury_severity'],
             'injury_runs_left' => (int) $row['injury_runs_left'],
             'last_place_id' => $row['last_place_id'] === null ? null : (int) $row['last_place_id'],
@@ -396,7 +550,13 @@ final class SimRepo
             'profile' => $profile,
             'reports' => $this->reports($characterId, $profile['memory_window'] ?? 8),
             'row_version' => (int) $row['row_version'],
-        ];
+            'premium' => Premium::state(
+                $row['premium_cash'] === null ? null : (int) $row['premium_cash'],
+                $row['premium'] ?? null,
+                $this->premiumCatalog(),
+                Balance::get(),
+            ),
+        ] + $this->loadGrowth($row);
     }
 
     public static function profile(array $row): array
@@ -556,6 +716,7 @@ final class SimRepo
             'open_places' => $plan['open_places'] ?? [],
             'submitted_by' => $plan['submitted_by'] ?? null,
             'affixes' => $world['affixes'],
+            'legendary_names' => $world['legendary_names'] ?? [],
             'inventory_count' => $char['inventory_count'],
             'commons' => $char['commons'],
             'balance' => $balance,
@@ -628,6 +789,13 @@ final class SimRepo
             $runningGold += $payout;
             $this->ledger($cid, 'sim_autosell', $runId, 'sell', null, $itemId, null, 1, $payout, $runningGold);
         }
+        $bag = self::json($locked['materials']) ?: [];
+        foreach ($result['materials'] ?? [] as $stack) {
+            $bag[$stack['code']] = (int) ($bag[$stack['code']] ?? 0) + (int) $stack['qty'];
+        }
+        $this->logMaterials($tripId, $result['materials'] ?? [], true);
+        $this->logMaterials($tripId, $result['lost_materials'] ?? [], false);
+
         foreach ($result['autosell_owned'] as $sold) {
             $payout = (int) $sold['sell_value'];
             $autosellGold += $payout;
@@ -653,6 +821,7 @@ final class SimRepo
                defeats = defeats + ?,
                kills = kills + ?,
                boss_kills = boss_kills + ?,
+               materials = ?,
                row_version = row_version + 1
              WHERE id = ?',
             [
@@ -664,6 +833,7 @@ final class SimRepo
                 $result['outcome'] === 'retreated' ? 1 : 0,
                 $result['outcome'] === 'defeated' ? 1 : 0,
                 (int) $result['kills'], (int) $result['boss_kills'],
+                $bag === [] ? null : self::dumps($bag),
                 $cid,
             ],
         );
@@ -680,6 +850,47 @@ final class SimRepo
         );
 
         return $tripId;
+    }
+
+    private function loadGrowth(array $row): array
+    {
+        $owned = self::json($row['materials'] ?? null) ?: [];
+        $materials = [];
+        foreach ($this->all('SELECT code, name, kind, glyph, description FROM material_templates ORDER BY sort_order, id') as $template) {
+            $materials[] = [
+                'code' => $template['code'],
+                'name' => $template['name'],
+                'kind' => $template['kind'],
+                'glyph' => $template['glyph'],
+                'description' => $template['description'],
+                'qty' => (int) ($owned[$template['code']] ?? 0),
+            ];
+        }
+        $skills = self::json($row['skills'] ?? null) ?: [];
+
+        return [
+            'materials' => $materials,
+            'skills' => $skills,
+            'horcrux' => [
+                'tier' => (int) ($row['horcrux_tier'] ?? 0),
+                'progress' => (int) ($row['horcrux_progress'] ?? 0),
+            ],
+        ];
+    }
+
+    /** @param list<array{code: string, qty: int}> $stacks */
+    private function logMaterials(int $tripId, array $stacks, bool $kept): void
+    {
+        foreach ($stacks as $stack) {
+            $template = $this->one('SELECT id FROM material_templates WHERE code = ?', [$stack['code']]);
+            if (! $template) {
+                continue;
+            }
+            $this->db->insert(
+                'INSERT INTO trip_materials (trip_id, material_id, qty, kept) VALUES (?,?,?,?)',
+                [$tripId, (int) $template['id'], (int) $stack['qty'], $kept ? 1 : 0],
+            );
+        }
     }
 
     private function insertItem(array $item, ?int $characterId, int $runId, int $tripId, string $status, bool $kept): int
@@ -776,8 +987,8 @@ final class SimRepo
      */
     public function openSealedBoxes(int $characterId, array $world, array $balance): void
     {
-        $char = $this->one('SELECT id, is_bot, gold FROM characters WHERE id = ? FOR UPDATE', [$characterId]);
-        if (! $char || ! (int) $char['is_bot']) {
+        $char = $this->one('SELECT id, is_bot, auto_mode, gold FROM characters WHERE id = ? FOR UPDATE', [$characterId]);
+        if (! $char || (! (int) $char['is_bot'] && ! (int) $char['auto_mode'])) {
             return;
         }
         $boxes = $this->all(
@@ -813,6 +1024,7 @@ final class SimRepo
                 $world['affixes'],
                 Rng::chest((int) $box['seed']),
                 $balance,
+                $world['legendary_names'] ?? [],
             );
             $plan = Loot::planCapacity($rolled, $commons, $capacity, $count);
             $soldIds = [];
@@ -925,15 +1137,28 @@ final class SimRepo
             }
         }
         $stats = $decision['stats'];
+        $materialMap = [];
+        foreach ($decision['materials'] ?? [] as $mat) {
+            if ((int) ($mat['qty'] ?? 0) > 0) {
+                $materialMap[$mat['code']] = (int) $mat['qty'];
+            }
+        }
+        $horcrux = $decision['horcrux'] ?? ['tier' => 0, 'progress' => 0];
         $this->db->update(
             'UPDATE characters SET stat_str = ?, stat_dex = ?, stat_int = ?, stat_vit = ?, stat_luk = ?,
                     unspent_points = ?, gold = ?, injury_severity = ?, injury_runs_left = ?,
-                    retreat_threshold_pct = ?, potion_threshold_pct = ?, row_version = row_version + 1
+                    retreat_threshold_pct = ?, potion_threshold_pct = ?,
+                    materials = ?, skills = ?, horcrux_tier = ?, horcrux_progress = ?,
+                    row_version = row_version + 1
               WHERE id = ?',
             [
                 $stats['str'], $stats['dex'], $stats['int'], $stats['vit'], $stats['luk'],
                 $decision['unspent'], $decision['gold'], $decision['injury_severity'], $decision['injury_runs_left'],
-                $decision['retreat_threshold_pct'], min(100, (int) $decision['potion_threshold_pct']), $cid,
+                $decision['retreat_threshold_pct'], min(100, (int) $decision['potion_threshold_pct']),
+                $materialMap === [] ? null : self::dumps($materialMap),
+                ($decision['skills'] ?? []) === [] ? null : self::dumps($decision['skills']),
+                (int) $horcrux['tier'], (int) $horcrux['progress'],
+                $cid,
             ],
         );
         foreach ($decision['ledger'] as $entry) {
@@ -948,11 +1173,32 @@ final class SimRepo
                     (int) ($entry['quantity'] ?? 1), (int) $entry['gold_delta'], (int) $entry['gold_after']],
             );
         }
+        if ($decision['premium_changed'] ?? false) {
+            $premium = $decision['premium'];
+            $this->db->update(
+                'UPDATE characters SET premium_cash = ?, premium = ?, row_version = row_version + 1 WHERE id = ?',
+                [(int) $premium['cash'], Premium::encode($premium), $cid],
+            );
+            $catalog = $this->premiumCatalog();
+            foreach ($decision['premium_bought'] ?? [] as $buy) {
+                $this->db->insert(
+                    "INSERT INTO shop_transactions (character_id, actor, run_id, action, premium_item_id, quantity, gold_delta, gold_after, cash_delta, cash_after)
+                     VALUES (?, 'bot', ?, 'premium', ?, 1, 0, ?, ?, ?)",
+                    [$cid, $runId, $catalog[$buy['code']]['id'], (int) $decision['gold'], -(int) $buy['price_cents'], (int) $buy['cash_after']],
+                );
+            }
+        }
         $this->db->update("UPDATE trip_orders SET status = 'cancelled' WHERE character_id = ? AND status = 'pending'", [$cid]);
         $this->db->insert(
             "INSERT INTO trip_orders (character_id, place_id, submitted_by, submitted_at, status) VALUES (?, ?, 'bot', ?, 'pending')",
             [$cid, $decision['place_id'], $run['started_at']],
         );
+        foreach ($decision['fed'] ?? [] as $itemId) {
+            $this->db->update(
+                "UPDATE item_instances SET status = 'destroyed', character_id = NULL WHERE id = ? AND character_id = ?",
+                [$itemId, $cid],
+            );
+        }
         $this->db->update('UPDATE mail SET is_read = 1 WHERE character_id = ? AND is_read = 0', [$cid]);
         $public = [
             'points' => $decision['points'],
@@ -961,8 +1207,55 @@ final class SimRepo
             'bought' => $decision['bought'],
             'belt' => $decision['belt'],
             'place' => $decision['place'],
+            'premium' => array_column($decision['premium_bought'] ?? [], 'name'),
             'why' => $decision['why'],
         ];
         $this->db->insert('INSERT INTO bot_decisions (run_id, character_id, decision) VALUES (?, ?, ?)', [$runId, $cid, self::dumps($public)]);
+    }
+
+    /**
+     * After the trip, spend every point the trip just granted and wear the best gear.
+     * The next run's planner still shops, trains, and picks the map. Points are already gone.
+     */
+    public function settleAuto(int $characterId, int $seed, array $balance): void
+    {
+        $state = $this->loadCharacter($characterId);
+        if (! $state['auto_mode'] || $state['profile'] === null) {
+            return;
+        }
+        $hadPoints = (int) $state['unspent'] > 0;
+        if ($hadPoints) {
+            Allocation::allocate($state, Rng::bot($seed, $characterId), $balance);
+        }
+        $before = array_map(fn ($item) => $item['id'] ?? null, $state['equipment']);
+        Gear::equipBest($state, $balance);
+        $after = array_map(fn ($item) => $item['id'] ?? null, $state['equipment']);
+        if (! $hadPoints && $before === $after) {
+            return;
+        }
+        if ($hadPoints) {
+            $stats = $state['stats'];
+            $this->db->update(
+                'UPDATE characters SET stat_str = ?, stat_dex = ?, stat_int = ?, stat_vit = ?, stat_luk = ?,
+                        unspent_points = ?, row_version = row_version + 1
+                  WHERE id = ?',
+                [
+                    $stats['str'], $stats['dex'], $stats['int'], $stats['vit'], $stats['luk'],
+                    (int) $state['unspent'], $characterId,
+                ],
+            );
+        }
+        if ($before !== $after) {
+            $this->db->delete('DELETE FROM character_equipment WHERE character_id = ?', [$characterId]);
+            foreach ($state['equipment'] as $slot => $item) {
+                if ($item === null || ($item['id'] ?? null) === null) {
+                    continue;
+                }
+                $this->db->insert(
+                    'INSERT INTO character_equipment (character_id, slot, item_instance_id) VALUES (?, ?, ?)',
+                    [$characterId, $slot, $item['id']],
+                );
+            }
+        }
     }
 }

@@ -15,6 +15,9 @@ class DatabaseSeeder extends Seeder
         '010_content.sql' => 'places',
         '015_shop.sql' => 'shop_listings',
         '020_bots.sql' => 'bot_profiles',
+        '030_growth.sql' => 'material_templates',
+        '040_legendary_names.sql' => 'legendary_names',
+        '050_premium.sql' => 'premium_items',
     ];
 
     public function run(): void

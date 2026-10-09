@@ -1,8 +1,11 @@
 import { Head } from '@inertiajs/react';
 import { Bot as BotIcon } from 'lucide-react';
+import { GearGlyphs, TitleBadge } from '@/components/Premium';
+import SectionNav from '@/components/SectionNav';
 import { Gold, OutcomeChip, PageHeader, Panel } from '@/components/ui';
-import { INJURY_LABELS, STAT_NAMES, timeAgo } from '@/lib/format';
-import type { Outcome, StatKey, Stats } from '@/types';
+import { RANKS_NAV } from '@/lib/nav';
+import { INJURY_LABELS, STAT_NAMES, money, timeAgo } from '@/lib/format';
+import type { Appearance, Outcome, StatKey, Stats } from '@/types';
 
 interface Decision {
     run_id: number;
@@ -15,6 +18,8 @@ interface BotRow {
     name: string;
     level: number;
     gold: number;
+    cash: number;
+    appearance: Appearance;
     kills: number;
     boss_kills: number;
     trips_cleared: number;
@@ -63,6 +68,7 @@ export default function Bots({ bots }: { bots: BotRow[] }) {
     return (
         <>
             <Head title="Rivals" />
+            <SectionNav entry={RANKS_NAV} />
             <PageHeader title="Rival Adventurers" subtitle="Six rule-bound souls who share the realm with you. They shop, gear up, and choose their own paths each run." />
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {bots.map((b) => {
@@ -79,6 +85,11 @@ export default function Bots({ bots }: { bots: BotRow[] }) {
                                         <span className="font-display text-xl font-extrabold text-lantern-300">{b.level}</span>
                                     </div>
                                     <div className="text-xs text-lantern-300 capitalize">{b.profile} · {b.archetype}</div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                        <TitleBadge title={b.appearance.title} />
+                                        <GearGlyphs look={b.appearance} />
+                                        <span className="text-[11px] font-semibold text-moss-400 tabular-nums" title="Premium wallet (play money)">{money(b.cash)}</span>
+                                    </div>
                                     {b.description && <p className="mt-1 line-clamp-2 text-xs text-ink-400">{b.description}</p>}
                                 </div>
                             </div>

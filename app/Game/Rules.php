@@ -18,7 +18,7 @@ final class Rules
 
     public const EQUIP_SLOTS = ['weapon', 'offhand', 'head', 'chest', 'hands', 'feet', 'ring1', 'ring2', 'amulet'];
 
-    /** @return array{0: bool, 1: ?string} [ok, reason] where reason is inactive | too_low | too_high */
+    /** @return array{0: bool, 1: ?string} [ok, reason] where reason is inactive | too_low. max_level is not a gate (DESIGN.md §4.0). */
     public static function canEnter(int $level, array $place): array
     {
         $active = ! array_key_exists('is_active', $place) || (bool) $place['is_active'];
@@ -30,10 +30,6 @@ final class Rules
         }
         if ($level < (int) $place['min_level']) {
             return [false, 'too_low'];
-        }
-        $max = $place['max_level'] ?? null;
-        if ($max !== null && $max !== '' && $level > (int) $max) {
-            return [false, 'too_high'];
         }
 
         return [true, null];
@@ -98,12 +94,7 @@ final class Rules
         if (($place['place_type'] ?? '') === 'rest') {
             return $place['name'];
         }
-        $label = "{$place['name']} (Lv {$place['rec_min_level']}–{$place['rec_max_level']}";
-        if (! empty($place['max_level'])) {
-            $label .= ", max {$place['max_level']}";
-        }
-
-        return $label.')';
+        return "{$place['name']} (Lv {$place['rec_min_level']}–{$place['rec_max_level']})";
     }
 
     /** @return list<string> */

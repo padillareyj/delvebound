@@ -2,6 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Swords, Trash2 } from 'lucide-react';
 import { OutcomeChip, Panel } from '@/components/ui';
 import { act } from '@/lib/act';
+import { confirmDialog } from '@/lib/dialog';
 import { formatDateTime, useTimezone } from '@/lib/format';
 import type { MailRow } from '@/types';
 
@@ -49,8 +50,15 @@ export default function MailShow({ letter }: { letter: Letter }) {
                         )}
                         <button
                             className="btn-danger"
-                            onClick={() => {
-                                if (window.confirm('Delete this letter?')) act(`/mail/${letter.id}`, {}, { method: 'delete' });
+                            onClick={async () => {
+                                const ok = await confirmDialog({
+                                    tone: 'danger',
+                                    icon: <Trash2 className="size-8" />,
+                                    title: 'Delete this letter?',
+                                    body: 'It is gone for good.',
+                                    confirmLabel: 'Delete',
+                                });
+                                if (ok) act(`/mail/${letter.id}`, {}, { method: 'delete' });
                             }}
                         >
                             <Trash2 className="size-4" /> Delete

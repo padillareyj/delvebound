@@ -32,7 +32,8 @@ final class Trip
         $buffs = self::tripBuffs($belt, $uses);
         $injury = (int) $char['injury_severity'];
         $level = (int) $char['level'];
-        $stats = Stats::derived($char['stats'], $level, $char['equipment'] ?? [], $balance, $injury, $buffs);
+        $bonus = Premium::combinedBonus($char, $balance);
+        $stats = Stats::derived($char['stats'], $level, $char['equipment'] ?? [], $balance, $injury, $buffs, $bonus);
         $maxHp = $stats['hp'];
         $actor = [
             'name' => $char['name'],
@@ -45,6 +46,9 @@ final class Trip
             'crit' => $stats['crit'],
             'crit_mult' => $stats['crit_mult'],
             'dodge' => $stats['dodge'],
+            'lifesteal' => $stats['lifesteal'],
+            'penetration' => $stats['penetration'],
+            'dmg_reduction' => $stats['dmg_reduction'],
             'damage_type' => $stats['damage_type'],
         ];
         $place = $ctx['place'];
@@ -54,6 +58,7 @@ final class Trip
         $affixes = $ctx['affixes'] ?? [];
         $encounters = [];
         $items = [];
+        $materials = [];
         $pouchXp = 0;
         $pouchGold = 0;
         $kills = 0;
@@ -70,6 +75,7 @@ final class Trip
             $xp = 0;
             $gold = 0;
             $drops = [];
+            $mats = [];
             if ($fight['result'] === 'won') {
                 $won++;
                 foreach ($group as $monster) {
@@ -79,7 +85,7 @@ final class Trip
                     }
                     $xp += Progression::monsterXp($monster['xp'], $monster['level'], $level, $balance);
                     $gold += Loot::goldDrop($monster, $place, $stats['gold_find'], $rng);
-                    $drop = Loot::tryDrop($monster, $monster['loot_table'], $stats['luk'], $stats['luck'], $place, $affixes, $rng, $balance, boss: $monster['is_boss']);
+                    $drop = Loot::tryDrop($monster, $monster['loot_table'], $stats['luk'], $stats['luck'], $place, $affixes, $rng, $balance, boss: $monster['is_boss'], legendaryNames: $ctx['legendary_names'] ?? []);
                     if ($drop) {
                         $drop['encounter_seq'] = $seq;
                         $drops[] = $drop;
@@ -92,6 +98,20 @@ final class Trip
                             'rarity' => $drop['rarity'],
                         ];
                     }
+                    foreach (Growth::rollKill($place['materials'] ?? [], (bool) $monster['is_boss'], $rng, $balance) as $mat) {
+                        Growth::addStack($materials, $mat);
+                        Growth::addStack($mats, $mat);
+                        $fight['log'][] = [
+                            'r' => $fight['rounds'],
+                            'ev' => 'mat',
+                            't' => $monster['name'],
+                            'name' => $mat['name'],
+                            'qty' => $mat['qty'],
+                        ];
+                    }
+                }
+                if ($stats['xp_mult'] != 1) {
+                    $xp = Numbers::halfUp($xp * $stats['xp_mult']);
                 }
                 $pouchXp += $xp;
                 $pouchGold += $gold;
@@ -117,6 +137,7 @@ final class Trip
                 'gold' => $gold,
                 'log' => $fight['log'],
                 'drops' => $drops,
+                'materials' => $mats,
             ];
             if ($fight['result'] === 'lost') {
                 $outcome = 'defeated';
@@ -132,7 +153,7 @@ final class Trip
                     'seq' => $seq + 1, 'is_boss' => false, 'monsters' => [], 'names' => [], 'result' => 'left_early',
                     'rounds' => 0, 'damage_dealt' => 0, 'damage_taken' => 0,
                     'hp_before' => $actor['hp'], 'hp_after' => $actor['hp'], 'xp' => 0, 'gold' => 0,
-                    'log' => [['ev' => 'left_early']], 'drops' => [],
+                    'log' => [['ev' => 'left_early']], 'drops' => [], 'materials' => [],
                 ];
                 break;
             }
@@ -156,12 +177,16 @@ final class Trip
         $goldGained = $pouchGold;
         $keptItems = $items;
         $lostItems = [];
+        $keptMaterials = $materials;
+        $lostMaterials = [];
         if ($outcome === 'defeated') {
             $xpGained = Numbers::halfUp($pouchXp * $balance['trip']['defeat_keep_mult']);
             $goldGained = Numbers::halfUp($pouchGold * $balance['trip']['defeat_keep_mult']);
             $clearBonus = 0;
             $lostItems = $items;
             $keptItems = [];
+            $lostMaterials = $materials;
+            $keptMaterials = [];
         }
 
         $progressed = Progression::applyXp($level, (int) $char['xp'], $xpGained, $balance);
@@ -179,7 +204,7 @@ final class Trip
 
         $snapshot = [
             'stats' => $char['stats'],
-            'derived' => array_intersect_key($stats, array_flip(['hp', 'attack', 'defense', 'mres', 'crit', 'crit_mult', 'dodge', 'speed', 'regen', 'luck', 'gold_find', 'damage_type'])),
+            'derived' => array_intersect_key($stats, array_flip(['hp', 'attack', 'defense', 'mres', 'crit', 'crit_mult', 'dodge', 'speed', 'regen', 'luck', 'gold_find', 'lifesteal', 'penetration', 'dmg_reduction', 'xp_mult', 'damage_type'])),
             'buffs' => $buffs,
             'equipment' => array_map(fn ($item) => [
                 'id' => $item['id'] ?? null,
@@ -217,6 +242,8 @@ final class Trip
             'lost_items' => $lostItems,
             'autosell_owned' => $autosell['sold_owned'],
             'autosell_new' => $autosell['sold_new'],
+            'materials' => $keptMaterials,
+            'lost_materials' => $lostMaterials,
             'uses' => self::mergeUses($uses),
             'kills' => $kills,
             'boss_kills' => $bossKills,
@@ -263,6 +290,8 @@ final class Trip
             'lost_items' => [],
             'autosell_owned' => [],
             'autosell_new' => [],
+            'materials' => [],
+            'lost_materials' => [],
             'uses' => [],
             'kills' => 0,
             'boss_kills' => 0,

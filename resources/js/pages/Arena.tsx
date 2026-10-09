@@ -2,7 +2,9 @@ import { Head, usePage } from '@inertiajs/react';
 import clsx from 'clsx';
 import { Swords } from 'lucide-react';
 import { useState } from 'react';
+import SectionNav from '@/components/SectionNav';
 import { PageHeader, Panel } from '@/components/ui';
+import { RANKS_NAV } from '@/lib/nav';
 import { act } from '@/lib/act';
 import { formatDateTime, useTimezone } from '@/lib/format';
 import type { SharedProps } from '@/types';
@@ -67,7 +69,8 @@ function logLine(ev: LogEvent): string {
     if (ev.ev === 'potion') return `R${ev.r}  ${ev.a} drinks a potion (+${ev.heal} HP, now ${ev.thp})`;
     if (ev.ev === 'time') return `R${ev.r}  The round limit falls. ${ev.winner} is still standing.`;
     const crit = ev.crit ? ' critical' : '';
-    return `R${ev.r}  ${ev.a} hits ${ev.t} for ${ev.dmg}${crit} (${ev.thp} HP left)`;
+    const leech = ev.heal ? `, lifesteal +${ev.heal}` : '';
+    return `R${ev.r}  ${ev.a} hits ${ev.t} for ${ev.dmg}${crit} (${ev.thp} HP left${leech})`;
 }
 
 function MatchCard({ match }: { match: Match }) {
@@ -123,6 +126,7 @@ export default function Arena({ signedUp, roster, bracket, history }: {
     return (
         <>
             <Head title="Arena" />
+            <SectionNav entry={RANKS_NAV} />
             <PageHeader
                 title="The Arena"
                 subtitle="Sign up, and the next bracket draws you at random against whoever else is waiting — rivals included. You fight until one of you drops to 0 HP. Winners move on. A knockout here does not wound you."

@@ -37,6 +37,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
                 'openedChest' => fn () => $request->session()->get('opened_chest'),
+                'forged' => fn () => $request->session()->get('forged'),
             ],
         ];
     }

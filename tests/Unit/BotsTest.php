@@ -75,6 +75,35 @@ class BotsTest extends GameTestCase
         $this->assertNotSame('greenwood', Destination::choose($state, $places, $memory, Rng::bot(4, 8), self::$balance)['code']);
     }
 
+    public function test_best_map_skips_a_place_that_would_defeat_you(): void
+    {
+        $monster = fn (int $hp, int $attack, int $defense) => [
+            'hp' => $hp, 'attack' => $attack, 'defense' => $defense, 'mres' => $defense,
+            'crit_pct' => 0, 'dodge_pct' => 0, 'damage_type' => 'physical',
+        ];
+        $place = fn (int $id, string $code, int $rec, array $monster) => [
+            'id' => $id, 'code' => $code, 'name' => ucfirst($code), 'place_type' => 'forest', 'is_active' => true,
+            'min_level' => 1, 'max_level' => null, 'rec_min_level' => 1, 'rec_max_level' => $rec, 'rec_level' => $rec,
+            'rarity_bonus' => 0, 'boss_monster_id' => null, 'boss' => null, 'boss_chance' => 0,
+            'encounter_min' => 1, 'encounter_max' => 1, 'gold_mult' => 1,
+            'spawns' => [['monster' => $monster, 'weight' => 1, 'min_group' => 1, 'max_group' => 1]],
+        ];
+        $places = [
+            ['id' => 1, 'code' => 'town', 'name' => 'Town', 'place_type' => 'rest', 'is_active' => true,
+                'min_level' => 1, 'max_level' => null, 'rec_min_level' => 1, 'rec_max_level' => 1, 'rec_level' => 1,
+                'rarity_bonus' => 0, 'boss_monster_id' => null],
+            $place(2, 'meadow', 2, $monster(8, 1, 0)),
+            $place(3, 'pit', 12, $monster(5000, 400, 400)),
+        ];
+        $state = $this->state($this->profile(['randomness' => 0, 'risk_offset' => 2, 'retreat_threshold_pct' => 20]));
+        $state['auto_place'] = 'best';
+        $memory = ['blocked' => [], 'step_up' => 0, 'retreats' => [], 'last_outcome' => null];
+        $this->assertSame('meadow', Destination::choose($state, $places, $memory, Rng::bot(4, 8), self::$balance)['code']);
+
+        $onlyPit = [$places[0], $places[2]];
+        $this->assertSame('town', Destination::choose($state, $onlyPit, $memory, Rng::bot(4, 8), self::$balance)['code']);
+    }
+
     public function test_allocation_spends_every_point_and_matches_seed(): void
     {
         $state = $this->state();

@@ -12,7 +12,7 @@ abstract class TestCase extends BaseTestCase
 {
     private const TEST_DATABASE = 'delvebound_test';
 
-    private const SEEDS = ['010_content.sql', '012_later_maps.sql', '015_shop.sql', '020_bots.sql'];
+    private const SEEDS = ['010_content.sql', '012_later_maps.sql', '015_shop.sql', '020_bots.sql', '030_growth.sql', '040_legendary_names.sql', '050_premium.sql'];
 
     protected function setUp(): void
     {

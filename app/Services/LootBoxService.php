@@ -9,29 +9,41 @@ use App\Game\Rng;
 use App\Simulation\SimRepo;
 use Illuminate\Support\Facades\DB;
 
-/** Opening a sealed clear-chest (DESIGN.md §6.1). Contents are rolled here, from the seed stored on the box. */
+/**
+ * Opening a sealed clear-chest (DESIGN.md §6.1). Contents are rolled here, from the seed stored on the box.
+ * Uses the admin connection: marking a chest opened needs UPDATE plus inserts the website user does not have.
+ */
 class LootBoxService
 {
     public function __construct(private CharacterService $characters) {}
+
+    private function db()
+    {
+        return DB::connection('admin');
+    }
 
     /**
      * @return array{place: string, items: list<array>, sold: list<array>}
      */
     public function open(int $accountId, int $version, int $boxId): array
     {
-        return DB::transaction(function () use ($accountId, $version, $boxId) {
+        return $this->db()->transaction(function () use ($accountId, $version, $boxId) {
             $balance = Balance::get();
-            $char = $this->characters->lock($accountId);
+            $row = $this->db()->table('characters')->where('account_id', $accountId)->lockForUpdate()->first();
+            if (! $row) {
+                throw new GameException('Character not found.');
+            }
+            $char = (array) $row;
             $this->characters->checkVersion($char, $version);
             $cid = (int) $char['id'];
-            $box = DB::table('loot_boxes')->where('id', $boxId)->lockForUpdate()->first();
+            $box = $this->db()->table('loot_boxes')->where('id', $boxId)->lockForUpdate()->first();
             if (! $box || (int) $box->character_id !== $cid) {
                 throw new GameException('That chest is not yours.');
             }
             if ($box->status !== 'sealed') {
                 throw new GameException('That chest is already open.');
             }
-            $place = DB::table('places')->where('id', $box->place_id)->first();
+            $place = $this->db()->table('places')->where('id', $box->place_id)->first();
             $rolled = Loot::rollChest(
                 $this->chestTable($place->chest_loot_table_id ?? null),
                 (int) $box->rolls,
@@ -40,10 +52,11 @@ class LootBoxService
                 $this->affixPool(),
                 Rng::chest((int) $box->seed),
                 $balance,
+                $this->legendaryNames(),
             );
             $commons = [];
             $count = 0;
-            $rows = DB::table('item_instances as ii')
+            $rows = $this->db()->table('item_instances as ii')
                 ->leftJoin('character_equipment as ce', 'ce.item_instance_id', '=', 'ii.id')
                 ->where('ii.character_id', $cid)
                 ->where('ii.status', 'owned')
@@ -62,8 +75,8 @@ class LootBoxService
             foreach ($plan['sold_owned'] as $victim) {
                 $payout = (int) $victim['sell_value'];
                 $gold += $payout;
-                DB::table('item_instances')->where('id', $victim['id'])->update(['status' => 'sold', 'character_id' => null]);
-                ShopService::ledger($cid, 'sell', null, (int) $victim['id'], null, 1, $payout, $gold);
+                $this->db()->table('item_instances')->where('id', $victim['id'])->update(['status' => 'sold', 'character_id' => null]);
+                $this->ledger($cid, (int) $victim['id'], $payout, $gold);
                 $sold[] = ['name' => $victim['name'], 'sell_value' => $payout, 'kept' => false];
             }
             foreach ($plan['kept'] as $item) {
@@ -74,12 +87,12 @@ class LootBoxService
                 $itemId = $this->insertItem($item, null, (int) $box->trip_id, 'sold', false);
                 $payout = (int) $item['sell_value'];
                 $gold += $payout;
-                ShopService::ledger($cid, 'sell', null, $itemId, null, 1, $payout, $gold);
+                $this->ledger($cid, $itemId, $payout, $gold);
                 $sold[] = ['name' => $item['display_name'], 'sell_value' => $payout, 'kept' => false];
                 $shown[] = $this->brief($item, $itemId);
             }
-            DB::table('loot_boxes')->where('id', $box->id)->update(['status' => 'opened', 'opened_at' => now('UTC')]);
-            DB::table('characters')->where('id', $cid)->update(['gold' => max(0, $gold), 'row_version' => DB::raw('row_version + 1')]);
+            $this->db()->table('loot_boxes')->where('id', $box->id)->update(['status' => 'opened', 'opened_at' => now('UTC')]);
+            $this->db()->table('characters')->where('id', $cid)->update(['gold' => max(0, $gold), 'row_version' => DB::raw('row_version + 1')]);
 
             return [
                 'place' => (string) ($place->name ?? 'the delve'),
@@ -87,6 +100,19 @@ class LootBoxService
                 'sold' => $sold,
             ];
         });
+    }
+
+    private function ledger(int $characterId, int $itemId, int $delta, int $goldAfter): void
+    {
+        $this->db()->table('shop_transactions')->insert([
+            'character_id' => $characterId,
+            'actor' => 'web',
+            'action' => 'sell',
+            'item_instance_id' => $itemId,
+            'quantity' => 1,
+            'gold_delta' => $delta,
+            'gold_after' => max(0, $goldAfter),
+        ]);
     }
 
     private function brief(array $item, int $itemId): array
@@ -102,7 +128,7 @@ class LootBoxService
 
     private function insertItem(array $item, ?int $characterId, int $tripId, string $status, bool $kept): int
     {
-        $itemId = (int) DB::table('item_instances')->insertGetId([
+        $itemId = (int) $this->db()->table('item_instances')->insertGetId([
             'template_id' => $item['template_id'],
             'character_id' => $characterId,
             'status' => $status,
@@ -120,14 +146,14 @@ class LootBoxService
             if (empty($affix['affix_id'])) {
                 continue;
             }
-            DB::table('item_instance_affixes')->insert([
+            $this->db()->table('item_instance_affixes')->insert([
                 'item_instance_id' => $itemId,
                 'affix_id' => $affix['affix_id'],
                 'stat_key' => $affix['stat_key'],
                 'value' => $affix['value'],
             ]);
         }
-        DB::table('trip_loot')->insert([
+        $this->db()->table('trip_loot')->insert([
             'trip_id' => $tripId,
             'item_instance_id' => $itemId,
             'encounter_seq' => null,
@@ -143,10 +169,10 @@ class LootBoxService
             return null;
         }
         $entries = [];
-        foreach (DB::table('loot_table_entries')->where('loot_table_id', $tableId)->orderBy('id')->get() as $row) {
+        foreach ($this->db()->table('loot_table_entries')->where('loot_table_id', $tableId)->orderBy('id')->get() as $row) {
             $template = null;
             if ($row->item_template_id) {
-                $templateRow = DB::table('item_templates')->where('id', $row->item_template_id)->first();
+                $templateRow = $this->db()->table('item_templates')->where('id', $row->item_template_id)->first();
                 $template = $templateRow ? SimRepo::template((array) $templateRow) : null;
             }
             $entries[] = [
@@ -163,7 +189,7 @@ class LootBoxService
     private function affixPool(): array
     {
         $pool = [];
-        foreach (DB::table('affixes')->orderBy('id')->get() as $row) {
+        foreach ($this->db()->table('affixes')->orderBy('id')->get() as $row) {
             $pool[] = [
                 'id' => (int) $row->id,
                 'code' => $row->code,
@@ -177,6 +203,17 @@ class LootBoxService
                 'value_max_base' => (float) $row->value_max_base,
                 'value_per_ilvl' => (float) $row->value_per_ilvl,
             ];
+        }
+
+        return $pool;
+    }
+
+    /** @return list<array> */
+    private function legendaryNames(): array
+    {
+        $pool = [];
+        foreach ($this->db()->table('legendary_names')->orderBy('id')->get() as $row) {
+            $pool[] = SimRepo::legendaryNameRow((array) $row);
         }
 
         return $pool;

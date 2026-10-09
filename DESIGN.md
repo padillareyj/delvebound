@@ -30,6 +30,7 @@ Inertia.js 2 + React 19 + TypeScript + Tailwind CSS 4 (UI) · MySQL 8.0 · Apach
 13. [Build Milestones](#13-build-milestones)
 14. [Decisions Log](#14-decisions-log)
 15. [Arena (PvP)](#15-arena-pvp)
+16. [Premium Store](#16-premium-store)
 
 ---
 
@@ -69,6 +70,8 @@ cron, and no catch-up logic.
                                    ▼
  ┌──────────────────────────────── delve:run ─────────────────────────────────────────────┐
  │ 0. GET_LOCK + insert simulation_runs row (new run id; only one 'running' run allowed)  │
+ │    Open the next map if someone has reached the frontier. Then, unless this is a     │
+ │    resume, a newcomer is born on spawn_chance (until the cap) and humans get a letter│
  │ 1. BOT PHASE: for each bot: read own mail → allocate points → equip best gear →        │
  │    sell junk → choose destination → shop (upgrades, potions, buffs) → write order      │
  │ 2. SNAPSHOT: collect pending orders submitted before the run started;                  │
@@ -87,7 +90,7 @@ cron, and no catch-up logic.
 Pacing is entirely up to Rey. Nothing in the game depends on wall-clock time between runs.
 
 The **arena** is a second manual command, `php artisan delve:arena` (§15). It does not start an expedition.
-Humans sign up on the website; the six bots step in every time. The bracket is random and single-elimination.
+Humans sign up on the website; every active bot steps in, including newcomers born on expedition runs. The bracket is random and single-elimination.
 Fights go until one side reaches 0 HP.
 
 ### 1.4 Glossary
@@ -119,6 +122,10 @@ Fights go until one side reaches 0 HP.
 - **Stat keys** used by affixes and implicit modifiers (one shared vocabulary for PHP, TypeScript, and JSON):
   `str, dex, int, vit, luk, hp, attack, armor, mres, crit_pct, crit_dmg_pct, dodge_pct, speed,
   gold_find_pct, magic_find_pct`.
+- **Bonus keys** used by skills, the horcrux, and premium pieces (`App\Game\Stats::BONUS_KEYS`, §3.2.1):
+  `hp, attack, defense, mres, crit_pct, crit_dmg_pct, dodge_pct, speed, magic_find_pct, gold_find_pct`
+  (flat) and `hp_pct, attack_pct, defense_pct, lifesteal_pct, penetration_pct, dmg_reduction_pct, xp_pct`
+  (percent layer and premium-only stats).
 - **Accounts vs. characters:** `accounts` holds human logins only. `characters.account_id` is `UNIQUE`,
   so one account has exactly one character; bots have `account_id = NULL` (a UNIQUE index allows many
   NULLs), `is_bot = TRUE`, and a `bot_profile_id`. A CHECK constraint enforces this.
@@ -147,9 +154,11 @@ characters 1─* character_consumables *─1 consumable_templates
 shop_listings ─ item_templates | consumable_templates;  characters 1─* shop_transactions
 regions 1─* places *─* monsters (place_monsters);  places ─ boss monster;  places ─ chest loot_table
 monsters ─ loot_tables 1─* loot_table_entries ─ item_templates
+legendary_names (titles for legendary drops; not a foreign key on the instance)
 simulation_runs 1─* trips 1─* trip_encounters;  trips 1─* trip_loot;  trips 1─1 mail;  trips 1─0..1 loot_boxes
 characters 1─* trip_orders;  simulation_runs 1─* bot_decisions
 characters 1─* arena_signups;  arena_tournaments 1─* arena_matches;  arena_tournaments 1─* mail (arena_report)
+premium_items (catalog; owned/worn codes live in characters.premium);  shop_transactions ─0..1 premium_items
 ```
 
 ### 2.3 CREATE TABLE statements
@@ -276,6 +285,24 @@ CREATE TABLE affixes (
   UNIQUE KEY uq_affixes_code (code)
 ) ENGINE=InnoDB;
 
+CREATE TABLE legendary_names (
+  id           SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code         VARCHAR(40) NOT NULL,
+  kind         ENUM('unique','base','epithet') NOT NULL,
+  name         VARCHAR(48) NOT NULL,             -- "Leeching" / "Edge" / "Excalibur"
+  item_type    VARCHAR(20) NULL,                 -- unique and base: sword, mail, jewelry, …
+  slot         ENUM('weapon','offhand','head','chest','hands','feet','ring','amulet') NULL,
+  stat_key     VARCHAR(20) NULL,                 -- epithet only: hp, str, …
+  placement    ENUM('prefix','suffix') NULL,     -- epithet only: "Leeching Edge" vs "Edge of the Leech"
+  min_ilvl     SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  weight       SMALLINT UNSIGNED NOT NULL DEFAULT 100,
+  UNIQUE KEY uq_legendary_names_code (code),
+  CONSTRAINT chk_legendary_names_shape CHECK (
+        (kind IN ('unique','base') AND item_type IS NOT NULL AND slot IS NOT NULL AND stat_key IS NULL AND placement IS NULL)
+     OR (kind = 'epithet' AND item_type IS NULL AND slot IS NULL AND stat_key IS NOT NULL AND placement IS NOT NULL)
+  )
+) ENGINE=InnoDB;
+
 CREATE TABLE monsters (
   id              SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   code            VARCHAR(32) NOT NULL,
@@ -377,6 +404,9 @@ CREATE TABLE characters (
   retreat_threshold_pct  TINYINT UNSIGNED NOT NULL DEFAULT 25,
   potion_threshold_pct   TINYINT UNSIGNED NOT NULL DEFAULT 40, -- drink a healing potion below this HP%
   auto_repeat            BOOLEAN NOT NULL DEFAULT TRUE,        -- no order => repeat last place
+  auto_mode              BOOLEAN NOT NULL DEFAULT FALSE,       -- human runs the bot planner at the start of a run
+  auto_profile_id        SMALLINT UNSIGNED NULL,               -- bot_profiles row used while auto_mode is on
+  auto_place             ENUM('profile','best') NOT NULL DEFAULT 'profile', -- profile: personality risk; best: hardest clearable place
   injury_severity        TINYINT UNSIGNED NOT NULL DEFAULT 0,  -- 0 none, 1 wounded, 2 badly wounded
   injury_runs_left       TINYINT UNSIGNED NOT NULL DEFAULT 0,
   last_place_id          SMALLINT UNSIGNED NULL,
@@ -396,6 +426,7 @@ CREATE TABLE characters (
   KEY ix_characters_leader (level DESC, total_xp DESC),
   CONSTRAINT fk_char_account FOREIGN KEY (account_id)     REFERENCES accounts(id),
   CONSTRAINT fk_char_profile FOREIGN KEY (bot_profile_id) REFERENCES bot_profiles(id),
+  CONSTRAINT fk_char_auto_profile FOREIGN KEY (auto_profile_id) REFERENCES bot_profiles(id),
   CONSTRAINT fk_char_last    FOREIGN KEY (last_place_id)  REFERENCES places(id),
   CONSTRAINT fk_char_best    FOREIGN KEY (best_place_id)  REFERENCES places(id),
   CONSTRAINT chk_char_retreat CHECK (retreat_threshold_pct <= 90),
@@ -682,6 +713,85 @@ LEFT JOIN places bp ON bp.id = c.best_place_id
 WHERE c.is_active = TRUE;
 ```
 
+### 2.4 Growth tables
+
+Added in migration `2026_09_28_180000_growth`. Content is `database/seeders/sql/030_growth.sql`.
+Skill definitions and every tunable (costs, drop chances, feed values, power weights) stay in
+`config/balance.json` → `growth`.
+
+```sql
+CREATE TABLE material_templates (
+  id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL,
+  name VARCHAR(64) NOT NULL,
+  kind ENUM('dust','shard','essence') NOT NULL,
+  glyph VARCHAR(8) NOT NULL DEFAULT '✦',
+  description VARCHAR(255) NULL,
+  sort_order SMALLINT NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_material_templates_code (code)
+) ENGINE=InnoDB;
+
+CREATE TABLE place_materials (
+  place_id SMALLINT UNSIGNED NOT NULL,
+  material_id SMALLINT UNSIGNED NOT NULL,
+  PRIMARY KEY (place_id, material_id)
+) ENGINE=InnoDB;
+
+-- On characters (so the website user can update them with the existing characters grant):
+--   materials JSON NULL          -- {"spark_dust": 2, "verdant_sap": 1}
+--   skills JSON NULL             -- {"keen_edge": 1, "iron_hide": 2}
+--   horcrux_tier TINYINT UNSIGNED NOT NULL DEFAULT 0
+--   horcrux_progress INT UNSIGNED NOT NULL DEFAULT 0
+
+CREATE TABLE trip_materials (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  trip_id INT UNSIGNED NOT NULL,
+  material_id SMALLINT UNSIGNED NOT NULL,
+  qty SMALLINT UNSIGNED NOT NULL,
+  kept BOOLEAN NOT NULL
+) ENGINE=InnoDB;
+```
+
+### 2.5 Premium store tables
+
+Added in migration `2026_10_08_120000_premium_store`. Content is `database/seeders/sql/050_premium.sql`.
+Like the growth columns, a character's premium state sits on `characters`, so the website user's
+existing `UPDATE` grant covers it and no new grant is needed. Purchases reuse the `shop_transactions`
+ledger (the website already has `INSERT` there).
+
+```sql
+CREATE TABLE premium_items (
+  id           SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code         VARCHAR(40)  NOT NULL,
+  name         VARCHAR(64)  NOT NULL,
+  category     ENUM('title','wings','aura','pet','frame','bundle') NOT NULL,
+  tier         ENUM('rare','epic','legendary','mythic') NOT NULL DEFAULT 'rare',
+  glyph        VARCHAR(8)   NOT NULL DEFAULT '✦',
+  style        VARCHAR(20)  NOT NULL DEFAULT 'lantern',   -- UI colour family
+  description  VARCHAR(255) NULL,
+  price_cents  INT UNSIGNED NOT NULL,                      -- play money
+  bonuses      JSON NULL,                                  -- Stats::BONUS_KEYS only
+  power        SMALLINT UNSIGNED NOT NULL DEFAULT 0,       -- added to power level while worn
+  grant_gold   INT UNSIGNED NOT NULL DEFAULT 0,            -- bundles only
+  is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order   SMALLINT NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_premium_items_code (code),
+  CONSTRAINT chk_premium_price CHECK (price_cents > 0),
+  CONSTRAINT chk_premium_shape CHECK (
+        (category = 'bundle' AND grant_gold > 0 AND bonuses IS NULL)
+     OR (category <> 'bundle' AND grant_gold = 0))
+) ENGINE=InnoDB;
+
+-- On characters:
+--   premium_cash INT UNSIGNED NULL   -- cents; NULL = never touched, read as balance.json premium.starting_cash_cents
+--   premium JSON NULL                -- {"owned": ["wings_void"], "equipped": {"wings": "wings_void"}}
+
+-- On shop_transactions:
+--   action ENUM('buy','sell','use','premium')
+--   premium_item_id SMALLINT UNSIGNED NULL  (FK premium_items)
+--   cash_delta INT NOT NULL DEFAULT 0, cash_after INT UNSIGNED NULL
+```
+
 **Retention:** `trip_encounters.log` grows fastest. Keep it for `LOG_RETENTION_DAYS=60` **[T]**; the
 `--prune-logs` flag replaces old logs with `[]` and keeps the summary columns.
 
@@ -724,6 +834,27 @@ Let `S, D, I, V, L` = total STR, DEX, INT, VIT, LUK (base + gear), `lvl` = chara
 | **Regen % between encounters** | `15 + 0.5·V` | 40 |
 | **Luck factor** (loot) | `0.01·L + G(magic_find_pct)/100` | 1.5 |
 | **Gold find mult** | `1 + 0.01·L + G(gold_find_pct)/100` | 3.0 |
+| **Lifesteal %** | `B(lifesteal_pct)` | 20 |
+| **Armor pierce %** | `B(penetration_pct)` | 50 |
+| **Damage reduction %** | `B(dmg_reduction_pct)` | 30 |
+| **XP mult** | `1 + B(xp_pct)/100` | ×2.0 (`xp_bonus_cap` 100) |
+
+`B(key)` is the bonus from skills, the horcrux, and premium pieces (§3.2.1). Gear does not roll the last four.
+
+#### 3.2.1 The bonus layer (skills, horcrux, premium)
+
+`Stats::derived($stats, $level, $equipment, $balance, $injury, $buffs, $bonus)` takes one merged bonus
+map (`Premium::combinedBonus` = `Growth::bonuses` + `Premium::bonuses`). It is applied in this order:
+
+1. **Flat** keys add after the gear formulas above: `hp`, `attack`, `defense`, `mres`, `speed`,
+   `crit_pct`, `dodge_pct`, `crit_dmg_pct` (÷100 onto the crit multiplier), `magic_find_pct`
+   (÷100 onto luck), `gold_find_pct` (÷100 onto gold find).
+2. **Percent** keys scale the result, rounded half up: `hp_pct` → max HP, `attack_pct` → attack,
+   `defense_pct` → defense **and** magic resist. Example: 84 HP with `hp_pct 10` → 92.
+3. **Caps** (the table above), then **injury**, then **belt buffs** (unchanged from before).
+
+So *Wounded* and Elixir of Might multiply the already-bonused numbers. Every number in the caps
+lives in `balance.json` → `derived`. The fixture file has a case for each step.
 
 *Damage type:* INT-scaling weapons deal **magic** damage (reduced by the target's magic resist); all
 others deal **physical** damage (reduced by defense). Mages trade HP and defense for reaching the
@@ -767,8 +898,8 @@ Every place is clearly level-specific. It has three level properties (§2.3, §7
 | Property | Column(s) | Kind | Meaning |
 |---|---|---|---|
 | Minimum level | `min_level` | **hard** | A character below it can't be sent there. |
-| Recommended range | `rec_min_level`–`rec_max_level` (+ `rec_level` as the single bot target) | soft | Shown on the map; bots aim for it. Going above it is risky; going below it pays little XP (§5.3). |
-| Maximum level | `max_level` (nullable) | **hard**, optional | Set on starter areas so high-level characters can't farm them. `NULL` = no cap. |
+| Recommended range | `rec_min_level`–`rec_max_level` (+ `rec_level` as the single bot target) | soft | Shown on the map; bots aim for it. Going above it is risky; going below it pays little XP (§5.3) but still drops materials (§6.7). |
+| Maximum level | `max_level` (nullable) | recorded only | Kept on starter areas as a note of the old cap. It is **not** a gate. A higher-level character can go back to farm materials. |
 
 There is **one rule**, `App\Game\Rules::canEnter()`, used by the website, the bots, and the simulation. It is
 tested against the fixture `tests/fixtures/place_access_cases.json`:
@@ -778,22 +909,22 @@ can_enter(level, place):
     if not place.is_active:                                      return (False, 'inactive')
     if place.place_type == 'rest':                               return (True,  None)      # Town is always open
     if level < place.min_level:                                  return (False, 'too_low')
-    if place.max_level is not None and level > place.max_level:  return (False, 'too_high')
-    return (True, None)
+    return (True, None)                                          # max_level does not block (decision 22)
 ```
 
 **Where it is enforced:**
 
 1. **Website orders flow** (`POST /map/order`, §11.1): checked server-side before the `trip_orders` insert.
    A failure returns an error and writes nothing. Locked places are also greyed out with the reason
-   ("Requires Lv 5", "You've outgrown this area (max Lv 6)"), but that UI hint is never the authority.
+   ("Requires Lv 5"), but that UI hint is never the authority. A place above its recommended range stays
+   open, with a low-XP warning, so materials can be farmed.
 2. **Bot phase:** the destination candidates are filtered with `can_enter` (§8.7), so bots never even
    submit an invalid order.
 3. **Simulation snapshot** (the final authority, at trip start): every order, including auto-repeats, is
    re-checked against the character's *current* level. A failure means outcome **`order_rejected`**: the
    character rests in Town, the order is cancelled, and the mail explains why and lists the places
-   that are open. This catches auto-repeat orders to a starter area the character has outgrown, and any
-   rows edited by hand in the DB.
+   that are open. This catches orders to a place the character is still too low for, and any
+   rows edited by hand in the DB. `max_level` is not re-checked.
 4. The level at **trip start** is what counts. A level-up during the trip never invalidates it
    retroactively.
 
@@ -858,14 +989,21 @@ resolve_attack(A, T):
     if rng.random()·100 < T.dodge_pct:            → MISS (log "dodged")
     # 2. Mitigation: pick defense by damage type
     Def  = T.defense if A.damage_type == physical else T.mres
+    Def ×= 1 − A.penetration/100                 # armor pierce (0 for monsters)
     base = A.attack² / (A.attack + Def)          # smooth diminishing returns
     # 3. Variance
     dmg = base × rng.uniform(0.90, 1.10)
     # 4. Crit
     if rng.random()·100 < A.crit_pct: dmg ×= A.crit_mult ; crit = True
+    dmg ×= 1 − T.dmg_reduction/100               # damage reduction (0 for monsters)
     dmg = max(1, round(dmg))
     T.hp -= dmg
+    # 5. Lifesteal: heal A by round(dmg × A.lifesteal/100), never above A.max_hp
 ```
+
+Pierce, reduction, and lifesteal use no extra rolls, so a seed replays the same when they are 0. A
+lifesteal heal is logged on the hit as `heal` and `ahp` (the attacker's HP after). The trip page and
+the arena log show it. The best-map preview (§8.7) uses the same three rules at the average roll.
 
 *Why `A²/(A+D)`:* it scales at every level without magic constants. When Def equals Attack, damage is
 halved. When Def is 0, damage equals Attack. Example: Rey (attack 12) vs Giant Rat (def 2) gives
@@ -928,10 +1066,17 @@ Compact events so the website can replay a fight:
 ### 5.1 XP to next level
 
 ```
-xp_to_next(L) = round_to_nearest_10( 100 · L^1.6 )          # [T]
+xp_to_next(L) = round_to_nearest_10( 100 · L^1.6 · 1.05^(L − 1) )    # [T]
 ```
 
-Level cap v1: **30** **[T]**.
+`L^1.6` is the level's base cost. `1.05^(L − 1)` adds **5%** for every level already gained, so the
+requirement keeps climbing by a compounding share (the way base EXP does in Ragnarok) instead of the
+gap flattening out. Level 1 is still 100. By level 10 the cost is about half again the old power-only
+curve, and by level 30 it is several times that. `xp.growth` in `balance.json` is that 5%.
+
+Level cap v1: **30** **[T]**, the floor. When a generated region extends past that, the effective cap
+becomes the highest `rec_max_level` in `places` (`Progression::levelCap`). Characters stop gaining
+levels at that ceiling and start again when the next map opens.
 
 ### 5.2 Rewards per level
 
@@ -944,15 +1089,15 @@ Level cap v1: **30** **[T]**.
 | Level | XP to next | Cumulative XP to reach | Stat points gained on reaching | Gold reward |
 |---:|---:|---:|---:|---:|
 | 1 | 100 | 0 | (start: 5) | – |
-| 2 | 300 | 100 | 5 | 40 |
-| 3 | 580 | 400 | 5 | 60 |
-| 4 | 920 | 980 | 5 | 80 |
-| 5 | 1,310 | 1,900 | **7** | 100 |
-| 6 | 1,760 | 3,210 | 5 | 120 |
-| 7 | 2,250 | 4,970 | 5 | 140 |
-| 8 | 2,790 | 7,220 | 5 | 160 |
-| 9 | 3,360 | 10,010 | 5 | 180 |
-| 10 | 3,980 | 13,370 | **7** | 200 |
+| 2 | 320 | 100 | 5 | 40 |
+| 3 | 640 | 420 | 5 | 60 |
+| 4 | 1,060 | 1,060 | 5 | 80 |
+| 5 | 1,600 | 2,120 | **7** | 100 |
+| 6 | 2,240 | 3,720 | 5 | 120 |
+| 7 | 3,020 | 5,960 | 5 | 140 |
+| 8 | 3,920 | 8,980 | 5 | 160 |
+| 9 | 4,970 | 12,900 | 5 | 180 |
+| 10 | 6,180 | 17,870 | **7** | 200 |
 
 Total points spent by level 10: 5 + 7×5 + 2×7 = **54**, so total stats = 25 base + 54 = 79.
 
@@ -966,8 +1111,11 @@ xp = round( monster.xp · clamp(1 + 0.10 · (monster.level − char.level), 0.20
 ```
 
 Farming far below your level pays little. Punching above your level pays up to +50%.
-**Pacing target:** roughly 2 at-level trips per level early on and 3–4 by level 10. At 4 runs/day that
-means level 10 in about a week of passive play.
+An XP bonus (`xp_mult`, §3.2.1) multiplies each won encounter's total, rounded half up, before the
+clear bonus and the defeat penalty. Arena XP is not multiplied.
+**Pacing target:** roughly 2 at-level trips per level early on, a few more by level 10, and longer
+after that as the 5% compound pulls ahead of monster XP (`10 · L^1.5`). At 4 runs/day, level 10 is
+still about a week of passive play.
 
 ---
 
@@ -1048,8 +1196,18 @@ keeps equip rules simple).
    runs dry, the item simply has fewer affixes.
 5. **Value:** `lo = value_min_base + value_per_ilvl·(ilvl−1)`, `hi = value_max_base + value_per_ilvl·(ilvl−1)`;
    `value = round(uniform(lo, hi))`, minimum 1. **Legendary:** roll twice and keep the higher.
-6. **Name:** `[prefix] <template name> [suffix]`, using the highest-value prefix and suffix if more than one.
-   Example: "Keen Worn Dagger of the Fox". Legendary items get a ★ in the UI.
+6. **Name.** Common through epic: `[prefix] <template name> [suffix]`, using the highest-value prefix and
+   suffix if more than one. Example: "Keen Worn Dagger of the Fox".
+   **Legendary** replaces that string. `legendary_names` holds three kinds of words, and the roll combines them:
+   - a **base** for this `item_type` and `slot` (a sword is an Edge or a Blade; mail on the chest is a Hauberk);
+   - an **epithet** for the strongest positive stat on the item, affix or implicit, highest value first
+     (life is `hp`, so a sword with life becomes "Leeching Edge" or "Edge of the Leech");
+   - a **unique** (Excalibur, Ragnarok, and the rest of that short list) that replaces the whole name when
+     `item_type`, `slot`, and `min_ilvl` fit. The chance is `legendary_unique_weight` against
+     `legendary_forged_weight` (25 vs 100): about one legendary in five that *could* be a unique takes
+     that name. Below the unique's item level, every legendary of that type is a combined name.
+   The chosen string is stored on `item_instances.display_name` and does not change later. The row is still
+   that template: power, slot, and affixes come from the roll. The UI still marks legendary with a ★.
 7. **Sell value:** `round(template.base_value · value_mult · (1 + 0.05·ilvl))`.
 
 ### 6.5 Gold drops
@@ -1058,7 +1216,7 @@ keeps equip rules simple).
 gold_per_kill = round( randint(gold_min, gold_max) · place.gold_mult · gold_find_mult )
 ```
 
-Gold pays for the shop (§7.7), respec, and later crafting. The leaderboard shows it too.
+Gold pays for the shop (§7.7), respec, and the forge (§6.9). The leaderboard shows it too.
 
 ### 6.6 Inventory limits
 
@@ -1066,6 +1224,82 @@ Gold pays for the shop (§7.7), respec, and later crafting. The leaderboard show
 - If a drop would exceed capacity, the lowest-sell-value *unequipped common* item is auto-sold. If there
   is none, the new drop is auto-sold. Either way the mail says so, and the sale is written to
   `shop_transactions` (actor `sim_autosell`). Nothing is silently deleted.
+
+### 6.7 Materials
+
+Materials are stacks, not gear. They do not use inventory slots. A kill rolls each material linked to
+the place (`place_materials`) after the gear roll, using the trip RNG. Chances live in `balance.json`
+under `growth.drops`, keyed by kind. A boss multiplies the chance by `boss_mult` (capped at 0.95).
+
+| Kind | Examples | Where | Used for |
+|---|---|---|---|
+| `dust` | Spark Dust | every combat place | skill ranks 1–2 |
+| `shard` | Rune Shard | every combat place, rarer | skill ranks 3–4 |
+| `essence` | Verdant Sap, Grave Salt, Sovereign Ember, … | **one place each** | skill rank 5 (any essence works) |
+
+Defeat loses the materials found on that trip, the same way it loses gear. Retreat and a clear keep them.
+The mail lists each stack.
+
+Going back to a low place is allowed (§4.0). XP there is still poor (§5.3). The reason to return is the
+essence that only that place drops.
+
+### 6.8 Skills, the horcrux, and power level
+
+Two upgrades. Numbers are in `balance.json` → `growth`.
+
+**Skills.** Three skills, ranks 0–5: Keen Edge (attack), Iron Hide (defense and magic res), Fortune
+(crit and magic find). The bonus is `per-rank value × rank`, added inside `Stats::derived` before caps,
+injury, and buffs. Rank 1–2 cost Spark Dust, 3–4 cost Rune Shards, rank 5 costs one essence from any
+place, plus gold. A human trains from the hero page (`POST /character/skills/{code}`).
+
+**Horcrux.** One per character (`character_horcrux`). Feeding an unequipped item destroys it
+(`status = 'destroyed'`) and adds progress from its rarity and item level. Thresholds raise the tier
+(0–5). Each tier adds HP, attack, and defense. A full horcrux refuses more gear.
+`POST /character/horcrux`.
+
+**Power level** is a label, not a combat stat:
+
+```
+power = power_per_level × level + power_per_skill_rank × (sum of skill ranks) + power_per_horcrux_tier × tier
+      + Σ premium_items.power of the worn premium pieces (§16)
+```
+
+The header, the hero page, and the leaderboard show it. Combat uses the skill, horcrux, and premium bonuses, not the power number.
+
+### 6.9 The forge
+
+Two unequipped pieces of the **same template slot** (two weapons, two helms, two rings) go into the forge.
+The attempt always spends gold and consumes both pieces. There are three results:
+
+| Result | What you get |
+|---|---|
+| Crack | Nothing. Both pieces are destroyed. |
+| Yield | A new piece of that slot, at the **better** input's rarity. Item level is the average of the two, rounded half up. |
+| Sing | The same, one rarity tier higher (legendary stays legendary) and `masterpiece_ilvl_bonus` item levels higher. Legendary affixes still roll twice and keep the higher value. |
+
+The new piece uses a template of that slot whose `req_level` is at most the result's item level. Templates closer to that
+level are more likely (`template_near / (1 + distance)`). If none qualify, the lowest-level template of the slot is used.
+Rarity, affixes, and the name use the same rules as a drop (§6.2–§6.4). `source = 'craft'`.
+
+```
+gold = round((base_gold + gold_per_ilvl · max(ilvl)) · rarity_gold_mult[better rarity])
+quality = lower rarity tier index (common 0 … legendary 4)
+luck = min(luck_cap, luck_per_luk · LUK)          # the LUK stat only; magic find does not move the forge
+fail        = fail_weight · max(fail_floor, 1 − quality · fail_cut_per_tier)
+craft       = craft_weight · (1 + luck · craft_luck)
+masterpiece = masterpiece_weight · (1 + quality · masterpiece_per_tier) · (1 + luck · masterpiece_luck)
+```
+
+Starting numbers (`balance.json` → `forge`): two common level-1 pieces cost **23** gold and crack **50%** / yield **42%** /
+sing **8%** at LUK 0. Two epics are much more likely to sing, and a short purse or a slot mismatch refuses before any
+roll. Equipped gear has to come off first. The same seed replays the same piece.
+
+A human strikes from the hero page's Forge section (`/character?tab=forge`, `POST /pack/forge`). Clicking an empty slot
+lists the spare pieces that fit; once one slot is filled, the other only offers the same slot. The odds and the gold cost on that panel are computed by
+`Forge::quote`; the page only displays them. The strike is confirmed in the game's own dialog (`resources/js/lib/dialog.ts`,
+which replaces every `window.confirm` on the site), and the result comes back as the `forged` flash prop (outcome, gold, and the
+new piece) that plays a short hammer swing before revealing what came out. The gold line is a `shop_transactions` row with
+`action='craft'`. Bots do not forge. The roll's seed is drawn in `ForgeService`, not in `app/Game`.
 
 ---
 
@@ -1118,6 +1352,31 @@ Places belong to a **region** (a map). The website shows one region at a time. C
 The two starter areas are capped (Greenwood at Lv 6, Copper Mine at Lv 9), so high-level characters can't
 farm them for easy loot. Min levels sit 1–2 below the recommended range, so a bold character can try a
 place early. The map shows all three values, e.g. *"Sunken Crypt · Lv 6–9 · requires Lv 5"*.
+
+**Generated regions.** The three maps above are authored. At the start of `delve:run` (not on `--resume`,
+and rolled back with a `--dry-run`), if any active character's level is at least the highest
+`rec_max_level` in the world, the simulation writes one new region before the trips. It keeps going,
+up to `world.max_regions_per_run`, while that is still true. The new band overlaps the previous end by
+`world.overlap` levels. Each map has `world.places_per_region` places. The first four stay a narrow
+`world.band_width` band. The last place is a dungeon `world.dungeon_band_width` levels wide (11, so a
+floor of 40 runs through a boss at 50). Inside every place the skirmishers sit on `rec_min`, the casters
+a third of the way up, the brutes halfway, and the boss is always `rec_max`. The bot target (`rec_level`)
+for that dungeon is the boss's level, so rivals aim to finish it at the top of the band.
+
+Monster stats still start from the §7 authoring formula (`world.monster` and `world.roles`). A monster
+above the place floor is then multiplied by depth pressure: trash uses
+`1 + depth_pressure · (level − rec_min)`, and the boss uses the smaller `boss_depth_pressure`, so a
+mid-band brute outfights a character who just walked in, and the boss stays the hardest fight in the
+room. A clear at the bottom of a wide dungeon is a bad bet unless the gear is ahead of the level.
+Each place has two loot tables. Trash rolls gear at or below the highest trash level. The boss and the
+clear chest roll the place's better gear, and the top templates (required level = the boss) are not on
+the trash table. Gear templates are not sold in town. Each place also drops one essence plus Spark Dust
+and Rune Shard. Names come from a theme
+(`App\Game\World\ThemeCatalog`): one adjective and noun for the region, then places, creatures, and the
+end dungeon in that voice. The roll is `Rng::world`, seeded by the frontier place code and the new
+`sort_order`, so the same frontier always opens the same map. A generated region code is `gen{n}_{theme}`.
+The map page already lists every `regions` row; a theme that is not one of the three parchments cycles
+the existing tints.
 
 **place_monsters (weight, group size):**
 
@@ -1221,6 +1480,20 @@ The Wilds has 16 (12 regular + 4 bosses). The Salt Marches and the Ashen Crown a
 | of_plenty | of Plenty | suffix | gold_find_pct | jewelry | 1 | 50 | 5 | 10 | 0.5 |
 | of_seeker | of the Seeker | suffix | magic_find_pct | armor, jewelry | 4 | 40 | 3 | 6 | 0.3 |
 
+### 7.4.1 Legendary names
+
+Seeded in `legendary_names` (`040_legendary_names.sql`). Ordinary drops keep the affix title above,
+including "of the Owl". Only `rarity = legendary` reads this table.
+
+| Kind | Matches | Example |
+|---|---|---|
+| base | `item_type` + `slot` | sword → Edge, Blade, Falchion; chest mail → Hauberk; ring → Band |
+| epithet | `stat_key` of the strongest positive affix or implicit | `hp` → Leeching, Bloodbound, of the Leech |
+| unique | `item_type` + `slot`, and `min_ilvl` | Excalibur (sword, 12), Ragnarok (axe, 20), Carnwennan, Laevateinn, Failnaught, Starfall, Ancile, Tarnhelm, Worldheart, Ouroboros |
+
+A new item template needs a `base` row for its slot and item type at or below its `req_level`. A new
+affix stat key needs at least one epithet. `delve:check-content` reports a miss.
+
 ### 7.5 Loot tables (entry weights)
 
 | Table | Entries (template: weight) |
@@ -1302,7 +1575,25 @@ Bots are **ordinary characters without a login account** (`is_bot = TRUE`, `acco
 decisions are made by `app/Game/Bots/` at the start of every run. The code blocks in this section are
 pseudocode; the PHP classes follow them step by step. Everything is rule-based, seeded
 from the run seed, and logged to `bot_decisions`. There are no external AI/LLM calls and no network
-access. There are always **6 bots**, so the world never feels empty.
+access. There are six founder personalities. Each run has a `newcomers.spawn_chance` of birthing
+one more, up to `newcomers.max_bots`, so the town grows slowly (§8.0).
+
+### 8.0 New arrivals
+
+At the start of `delve:run` (not on `--resume`, and rolled back with a `--dry-run`), if fewer than
+`newcomers.max_bots` bots are active, the run rolls `newcomers.spawn_chance` (0.10, about one run in
+ten). On a hit, one new bot is inserted before the bot phase. The roll is `Rng::arrival($seed, $activeBots)`.
+
+| Roll | Rule |
+|---|---|
+| Birth | `spawn_chance`. A miss inserts nobody and sends no letter. |
+| Personality | One of the six `bot_profiles`, chosen uniformly. |
+| Name | A given name from `Newcomer`, and with probability `mononym_chance` (0.30) that is the whole name. Otherwise a surname is added. A surname already used in town is skipped until every surname has been used once. |
+| Level | Level 1 with probability `fresh_chance`. Otherwise a level in `[highest − top_window, highest − 1]`. Never the current highest level. If the leader is still level 1, the newcomer is level 1. |
+| Points and XP | Unspent points are the full pool for that level. `total_xp` is the XP required to reach it, so they rank behind anyone who actually earned that level. The bot phase spends the points on this same run. |
+| Gear | Level 1 gets the ordinary starter kit. Above level 1, one item is rolled per kit slot (weapon matches their scaling; a two-handed weapon skips the offhand), `req_level` at most their level, and within `gear_lag` of it when such a template exists. |
+| Letter | Every active human receives `mail_type='system'`, subject **A hero has been born**. Bot memory only reads `trip_report`. |
+| Cap | **48**, not 1000. Every active bot delves on every run and enters every arena. A thousand of them would turn a manual run into a long batch and flood the bracket. Raise `newcomers.max_bots` if the town should be larger. |
 
 ### 8.1 Personalities (seed rows for `bot_profiles`)
 
@@ -1347,18 +1638,39 @@ level 1, starter kit matching their scaling stat, 2 Minor Healing Potions, 50 go
 memory  = read_memory(bot)                          # 8.8: from own mail
 allocate_stat_points(bot)                           # 8.3
 equip_best_gear(bot)                                # 8.4: from current inventory
-sell_junk(bot)                                      # 8.5: via the shop ledger
-place   = choose_destination(bot, memory)           # 8.7: respects level gates
+train_skills(bot)                                   # 6.8: one rank, lowest rank first, if gold and mats allow
+feed_horcrux(bot)                                   # 6.8: up to bot_feed_per_run junk items, stop at the next tier
+premium_step(bot)                                   # 16.4: wear best owned pieces, buy ≤ bot_buys_per_run (bots only)
+sell_junk(bot)                                      # 8.5: via the shop ledger (fed items are already destroyed)
+place   = choose_destination(bot, memory)           # 8.7: respects min_level; may farm an essence
 shop_step(bot, place)                               # 8.6: bandage, gear upgrade, potions, buff; re-equip if bought
 fill_belt(bot, place)                               # 8.6
 cancel any pending order; insert trip_order(place, submitted_by='bot'); mark own mail is_read=1
-insert bot_decisions(run_id, char_id, {points, equipped, sold, bought, belt, place, reasons})
+insert bot_decisions(run_id, char_id, {points, equipped, sold, bought, belt, place, premium, reasons})
 ```
 
 Bot RNG: `Rng::bot($runSeed, $characterId)` (§10.3). It is separate from the trip RNG, so bot
 decisions don't shift combat rolls. Bots copy `profile.retreat_threshold_pct` into
 `characters.retreat_threshold_pct` (and set `potion_threshold_pct = retreat + 15`), so combat has a
 single code path for everyone.
+
+A human can turn on **auto mode** on the hero page (`characters.auto_mode`, `auto_profile_id`). They
+stay a human (`is_bot` stays false, they keep their account). At the start of the run they take the
+same step as a bot, using the personality they picked: points, gear, skills, horcrux, junk sales,
+destination, shop, belt, and sealed chests. Any pending order is replaced. The personality's retreat
+and potion thresholds are copied onto the character for that run. Turning auto mode off leaves the
+last personality selected but the next run waits for a normal order again. With **best map**
+(`characters.auto_place = 'best'`) the destination step ignores the personality's risk and exploration
+rolls. It previews each open place with the character's current stats, gear, skills, horcrux, injury,
+and potions they already own, using the average combat roll. It takes the hardest place that preview
+clears. A preview that ends in a defeat is skipped, because a defeat is what applies *Wounded*. If
+some place is a clean clear, a place they would only retreat from is skipped too. If every open place
+would defeat them, they rest in town. If they would survive but clear none on the preview, they take
+the hardest place they still walk away from. The personality still
+spends points, equips, sells, shops, and sets retreat and potion thresholds. Every unspent point is
+spent before the trip, and any points the trip itself grants are spent again before the run finishes,
+then the best gear is worn. This does not add a seventh
+bot, and the arena is still opt-in.
 
 ### 8.3 Stat allocation
 
@@ -1485,8 +1797,21 @@ def choose_destination(char, prof, mem, places, rng):
     return max(cands, key=score)
 ```
 
-Because of the gates, a berserker with `risk_offset +2` still can't enter the Sunken Crypt before level 5,
-and a level-7 bot can no longer farm Greenwood (max Lv 6).
+**Best map** (`auto_place = 'best'`, humans in auto mode only) replaces the score above. The same gates,
+injury rest, and blocked-place memory still apply. Each remaining place is previewed at the average
+damage roll (`(variance_min + variance_max) / 2`, expected crit and dodge) for `encounter_max` fights.
+Each fight uses the largest pack of the spawn that hurts the most, and the last fight is the boss when
+the place has one. Potions already in the bags are assumed on the belt, up to the personality's potion
+target. A place counts only when every fight is won. The winner is the highest `rec_level` among those
+(then gold multiplier, then id). A place whose preview reaches 0 HP is a defeat and is never chosen.
+If nothing is a clean clear, the hardest place they still survive is chosen. If every preview
+is a defeat, the character rests in town. Essence farming and the
+exploration roll stay on the personality path.
+
+Because of the gates, a berserker with `risk_offset +2` still can't enter the Sunken Crypt before level 5.
+A level-7 bot **can** return to Greenwood. If the next skill rank needs an essence they do not have,
+`bot_farm_chance` sends them to the lowest open place that drops one. Otherwise they still chase their
+level target. XP in a place below the recommended range stays poor (§5.3).
 
 ### 8.8 Mail-based memory
 
@@ -1575,7 +1900,7 @@ Belt: Healing Potion ×2, Stoneskin Tonic ×1 (drunk at the entrance)
  TOTALS   XP +2,330 · Gold +241 · Items 4 · Kills 8 (1 boss)
  USED     Healing Potion ×1, Stoneskin Tonic ×1   (left: Healing Potion ×1)
  LEVEL UP! 8 → 9   +5 stat points (unspent: 5) · +180 gold
- XP 1,142 / 3,360 to Lv 10
+ XP 1,142 / 4,970 to Lv 10
 ───────────────────────────────────────────────────────────
  Status: healthy. Your order will auto-repeat (Sunken Crypt)
  unless you pick a new destination before the next run.
@@ -1741,6 +2066,7 @@ public function execute(array $opts): int
         if ($dry) $db->beginTransaction();                          // outer tx, rolled back at the end
         $run = $opts['resume'] ? RunLock::resume($db, $id) : RunLock::begin($db, $seed, ...);
         $world = $repo->loadWorld();
+        if (!$opts['resume']) $repo->birthNewcomer($run['seed'], $run['id'], $world); // spawn_chance, until the cap
         if (!$opts['skip_bots']) $this->botPhase($run, $world);    // one transaction per bot
         $plans = $repo->snapshotOrders($run, $world);              // order | auto-repeat | rest | blocked | rejected
         foreach (sorted($plans) as $charId => $plan) {             // stable order = readable logs
@@ -1791,15 +2117,17 @@ and Inertia swaps the page in place. The HTTP side uses the default `mysql` conn
 | `/login` | `auth/Login` | `accounts` | `POST /login`: session; `accounts.last_login_at`, `failed_logins`, `locked_until`. `POST /logout` |
 | `/account` | `Account` | own account | `POST /account/password`: change password (requires the current one) |
 | `/` | `Dashboard` | own character summary, unread mail count, pending order, belt, last `simulation_runs` row, recent trips | – |
-| `/character` | `Character` | `characters`, equipment + affixes, belt buffs, `Stats::derived()` | `POST /character/points`, `/character/prep` (`retreat_threshold_pct`, `potion_threshold_pct`, `auto_repeat`), `/character/respec` (cost `50·level` gold **[T]**) |
-| `/pack` | `Pack` | `v_inventory`, `character_equipment`, affixes, `character_consumables`, sealed `loot_boxes` | `POST /pack/equip`, `/pack/unequip` (refused when the pack already holds `inventory_capacity` items), `/pack/belt` (≤ `BELT_SLOTS` total), `/pack/bandage`, `/pack/chests/{id}/open` |
+| `/character` | `Character` | left menu: Character (sheet, attributes, combat profile, power, auto mode), Skills, Horcrux, Inventory (`v_inventory` slot grid, equipment, belt, sealed `loot_boxes`, material stacks), Forge (§6.9). `?tab=skills\|horcrux\|inventory\|forge` opens that section. `Stats::derived()` includes skill, horcrux, and premium bonuses; a "Stat bonuses" panel shows base → bonus → total per stat and each bonus source; the power panel shows the portrait with worn premium pieces. The forge quote (`Forge::quote`) is loaded when `forge_a` and `forge_b` are set | `POST /character/points`, `/character/prep` (retreat, potions, auto-repeat, and auto mode + personality + map choice `profile` or `best`), `/character/respec` (cost `50·level` gold **[T]**), `/character/skills/{code}`, `/character/horcrux`, plus the old pack writes below |
+| `/pack` | redirects to `/character` | — | `POST /pack/equip`, `/pack/unequip` (refused when the inventory already holds `inventory_capacity` items), `/pack/belt` (≤ `BELT_SLOTS` total), `/pack/bandage`, `/pack/chests/{id}/open`, `/pack/forge` (two unequipped pieces, same slot; §6.9). Gear is a grid of icons; stats show on hover |
 | `/market` | `Market` | `shop_listings` (+ templates), own gold/level/inventory, recent `shop_transactions` | `POST /market/buy`, `/market/sell-item`, `/market/sell-consumable` (§7.7 rules, ledger row per action; consumables buy/sell 1–20 at a time, selling shrinks `belt_qty` to what is left) |
+| `/premium` | `Premium` | `premium_items`, own `premium_cash` / `premium`, per-item stat preview from `Stats::derived`, recent premium `shop_transactions` | `POST /premium/buy` (`code`), `/premium/wear` (`code`), `/premium/take-off` (`category`); §16 rules |
 | `/map` | `Map` | `places` incl. **min/rec/max levels**, own past `trips` per place | `POST /map/order` (orders flow below), `DELETE /map/order` cancels the pending order; "Rest in town" = the Town place |
 | `/mail`, `/mail/{id}` | `mail/Index`, `mail/Show` | own `mail` (inbox, paging, filter by outcome/unread) | opening marks `is_read`; `DELETE /mail/{id}` soft-deletes (`deleted_at`); `POST /mail/read-all` marks the inbox read |
 | `/trips/{id}` | `Trip` | own `trips`, `trip_encounters.log`, `trip_loot` | – (animated round-by-round battle replay) |
-| `/leaderboard` | `Leaderboard` | `v_leaderboard` (sortable: level/XP, gold, boss kills, clears, defeats; bots marked 🤖) | – |
+| `/leaderboard` | `Leaderboard` | `v_leaderboard` plus each character's power (`Growth::powerLevel` from level, skill ranks, and horcrux tier; sortable: level/XP, power, gold, boss kills, clears, defeats; bots marked 🤖). A name opens that adventurer's public sheet | – |
+| `/leaderboard/{id}` | `Adventurer` | any character's public sheet: attributes, derived stats, equipped gear, skill ranks, horcrux. Inventory, material stacks, belt counts, and expedition orders are not included | – |
 | `/bots` | `Bots` | bot characters, their `bot_profiles` flavour text, recent `bot_decisions` | – |
-| `/arena` | `Arena` | own signup, waiting humans, the six bots (they always enter), the latest bracket and its logs, past champions | `POST /arena/enter` signs the session's character up; `DELETE /arena/enter` withdraws. There is no "start the arena" button |
+| `/arena` | `Arena` | own signup, waiting humans, every active bot (they always enter), the latest bracket and its logs, past champions | `POST /arena/enter` signs the session's character up; `DELETE /arena/enter` withdraws. There is no "start the arena" button |
 | `/runs` | `Runs` | `simulation_runs` history, outcome counts per run | – (admin only; there is no "Run now" button) |
 | `/admin` | `admin/Index` | all `item_templates` plus loot/shop usage | – (admin only) |
 | `/admin/gear/create`, `/admin/gear/{id}/edit` | `admin/GearForm` | one template, loot tables, shop listing | `POST /admin/gear`, `PUT /admin/gear/{id}`, `DELETE /admin/gear/{id}` (admin + `run.guard`). Writes `item_templates`, `loot_table_entries`, and `shop_listings`. Live DB only — not written back to seed SQL. Already-dropped `item_instances` keep rolled power/armor/mres; implicits follow the template. |
@@ -1862,6 +2190,7 @@ routes/web.php
        AccountService   sign-up + starter kit, password change
        CharacterService points, prep, respec, equip/unequip, belt, bandage, orders
        ShopService      buy/sell (gear and consumables)
+       ForgeService     combine two pieces (§6.9)
        AdminContentService  admin gear templates, loot weights, shop listings
        GameQueries      read models for the pages
   → app/Game/*                                rules and formulas (shared with the simulation)
@@ -2131,7 +2460,7 @@ runner, locking), CLI flags, tests, `tools/balance_lab.py`.
 | Extra | Sketch | Acceptance |
 |---|---|---|
 | **Parties** | `parties` + `party_members`. One order per party; shared encounters; monsters target by threat; round-robin loot; each member still gets their own mail. The **party** must pass every member's level gate. | Deterministic; per-character idempotency holds; no member bypasses a gate. |
-| **Crafting** | Material templates, `recipes` + `recipe_inputs`, a "reforge one affix" gold sink. | Atomic; crafted items have `source='craft'`. |
+| **Crafting** | The forge (§6.9) is the first sink: two unequipped pieces of the same slot. Recipes remain later. | Atomic; crafted items have `source='craft'`. A crack destroys both pieces. |
 | **Rare events** | `events` table (trigger chance, place filter, effect JSON): wandering merchant, shrine buff, ambush. | Fire at about the configured rate and appear in the mail. |
 | **Seasons** | `seasons` table, soft reset, archived leaderboards. | Rollover is idempotent; past seasons stay viewable. |
 | **Shop v2** | Rotating/limited stock, level-scaled uncommon gear. | Stock never goes negative. |
@@ -2183,7 +2512,18 @@ Python `sim/` and the old `src/`, `templates/`, `bin/` folders removed.
 | 18 | **Admin gear editor** at `/admin` (`accounts.is_admin`). Create/edit `item_templates` in MySQL, with loot-table weights and an optional shop listing (price from `ShopMath::gearPrice`). Writes use the `admin` DB connection. Seeds stay the reset source; admin edits are not written back to seed SQL. | Rey can add and tune gear without a migration. | Rey |
 | 19 | **Arena is a separate manual command**, `php artisan delve:arena`, not part of `delve:run`. Humans opt in on `/arena`; the six bots always enter. Bouts are knockout (to 0 HP) in a random single-elimination bracket. No injury, no gear loss. The website cannot start it. It shares the `delvebound_simulation` lock with expeditions so the two never write characters at the same time. | PvP should feel like a duel card, not another expedition, and Rey still rings the bell. | Rey |
 | 20 | **Three maps (regions).** The Wilds (Lv 1–16), The Salt Marches (Lv 14–25), and The Ashen Crown (Lv 24–30, the level cap). A place has a `region_id`; the map page shows one region at a time. Later gear drops from those places and is not sold in the Lanternford shop. | One map ran out of room before the level cap. Regions keep each parchment readable. | Rey |
-| 21 | **Clear reward is a sealed chest.** Kill and boss drops are still rolled during the trip. A clear writes a `loot_boxes` row; the gear is rolled when a human opens it on the Pack page, or when a bot's next decision step opens it. The seed and luck factor are snapshotted on the box. Affix count stays tied to rarity. Roll count grows with the place's recommended level (`chest_rolls_*` in `balance.json`). | Rey wanted loot on the kill, and a chest you open later the way a loot box opens, including for bots. | Rey |
+| 21 | **Clear reward is a sealed chest.** Kill and boss drops are still rolled during the trip. A clear writes a `loot_boxes` row; the gear is rolled when a human opens it on the hero page, or when a bot's next decision step opens it. The seed and luck factor are snapshotted on the box. Affix count stays tied to rarity. Roll count grows with the place's recommended level (`chest_rolls_*` in `balance.json`). | Rey wanted loot on the kill, and a chest you open later the way a loot box opens, including for bots. | Rey |
+| 22 | **Materials, two upgrades, and open low maps.** Spark Dust and Rune Shards drop everywhere. Each place also drops one essence. Skills (Keen Edge, Iron Hide, Fortune) spend those materials. The horcrux eats unequipped gear. Power level is `10×level` plus skill ranks and horcrux tier. `max_level` is no longer a hard gate, so a strong character can farm a low place for its essence. Bots train one rank, feed a few junk items, and sometimes walk back for an essence they still need. The hero page holds the inventory grid; `/pack` redirects there. | Rey wanted an MU-style bag, drops worth returning for, and one or two upgrade paths the bots can use. | Rey |
+| 23 | **Auto mode for humans.** `auto_mode` plus `auto_profile_id` (one of the six personalities). The bot phase runs for that character too. They stay `is_bot = 0` with an account. The website cannot start a run. | A player can hand the between-run chores (gear, shop, destination, points) to the same rules the rivals use. | Rey |
+| 24 | **Best map inside auto mode.** `auto_place` is `profile` (the personality's risk) or `best` (hardest place a stat preview can clear; otherwise town). | A player who wants the chores automated can still refuse a road that looks like a defeat. | Rey |
+| 25 | **Legendary titles come from `legendary_names`.** Common–epic gear keeps prefix + template + suffix ("of the Owl"). A legendary combines a base for its weapon or armor with an epithet for its strongest stat (life → Leeching), or, less often and only once `min_ilvl` allows, a unique name such as Excalibur or Ragnarok. The string is stored on the item instance. | Rey wanted Diablo-style legendary names without giving up the animal titles on ordinary loot. | Rey |
+| 26 | **Regions generate when someone reaches the end.** At the start of a run, if any active character's level is at least the world's highest `rec_max_level`, the simulation inserts the next themed region (places, monsters, loot, essence) and the effective level cap rises to that region's top. The authored cap of 30 stays the floor. Dry-run rolls it back. The website never generates a map. | The three hand-drawn maps end at the cap. The world should keep opening as Rey and the bots arrive. | Rey |
+| 27 | **A newcomer on 10% of runs, cap 48.** `spawn_chance` is 0.10, so most runs add nobody. On a hit: a random personality, level 1 or inside the top window but never the current highest level, with rolled gear above level 1, and a "A hero has been born" letter. The six profiles stay. 1000 was rejected because every bot delves and enters the arena. | A birth every run would fill the town too fast. | Rey |
+| 28 | **XP to next level compounds by 5% per level** on top of `100 · L^1.6` (`xp.growth` in `balance.json`). | A pure power curve flattens: each new level barely costs more than the last. The percent keeps the gap widening, in the same spirit as Ragnarok's base EXP, without a pure exponential that would outrun monster XP. | Rey |
+| 29 | **A generated dungeon is a climb.** The last place of a new region spans `dungeon_band_width` (11) levels. Trash steps up the band; the boss is always `rec_max`. Depth pressure makes a mid-band monster a real threat to someone at the floor. Trash cannot roll the boss-tier templates; the boss and the clear chest can. | Rey wanted a 40–50 dungeon to stay hard at 40, with the boss at 50 and the best loot on that boss. Failing the clear while under-levelled is the intended result unless the gear is ahead. | Rey |
+| 30 | **Premium store with play money (§16).** Every character, bots and newcomers included, starts with **$100.00** (`premium.starting_cash_cents`). Titles, wings, auras, pets, and frames add bonus stats and power. One worn piece per category. Gold bundles turn dollars into gold. There is no real payment and no way to earn more dollars in v1. Bots buy at most one piece per run with a fixed rule; auto-mode humans never spend dollars. | Rey wanted the mobile-RPG "HP bonus / attack bonus" feel and cosmetics everyone, bots included, can show off. | Rey |
+| 31 | **Mobile-style bonus layer.** Percent bonuses (`hp_pct`, `attack_pct`, `defense_pct`) after the flat sums, plus four new stats: lifesteal, armor pierce, damage reduction, and XP bonus. Only bonus sources set them, not gear. The arena now applies the same bonus map as trips, so skills and the horcrux count in duels too. | One bonus path for trips, arena, the best-map preview, and the sheet. The arena leaving out skills and the horcrux was an oversight. | Rey + design |
+| 32 | **The forge combines two pieces.** Same template slot, both unequipped. Gold is spent either way. The attempt cracks (both destroyed), yields a new piece at the better rarity, or sings (one tier higher, or a stronger legendary). Odds improve with the lower piece's rarity and with LUK. The website shows `Forge::quote`. Bots do not forge. | A gold sink that can fail or turn two spare pieces into something finer, without a recipe list. | Rey |
 
 ---
 
@@ -2196,7 +2536,7 @@ A knockout bracket, separate from expeditions. Rey starts it by hand. The websit
 | Who | How |
 |---|---|
 | Humans | `POST /arena/enter` sets `characters.arena_entered`. The website user can already update `characters`, so no new grant is required. `DELETE /arena/enter` clears the flag. One character, one flag. |
-| Bots | Every active bot is in every bracket. They do not opt in. |
+| Bots | Every active bot is in every bracket, founders and newcomers alike. They do not opt in. |
 
 Fewer than two entrants prints a message and writes nothing (exit 0). A human who never signed up is not in the bracket and gets no arena mail.
 
@@ -2239,7 +2579,7 @@ Each duel uses `Rng::duel($seed, $round, $slot, $idA, $idB)` so the same seed an
 
 ### 15.5 A duel
 
-Both fighters are snapshotted like a trip: derived stats from `Stats::derived`, including injury modifiers and one drink of each trip-start belt buff (Might, Stoneskin, Lucky Charm). Those buffs are consumed once for the whole tournament, not once per round.
+Both fighters are snapshotted like a trip: derived stats from `Stats::derived`, including the skill, horcrux, and premium bonuses (§3.2.1; before decision 31 the arena left these out), injury modifiers, and one drink of each trip-start belt buff (Might, Stoneskin, Lucky Charm). Those buffs are consumed once for the whole tournament, not once per round.
 
 | Rule | What happens |
 |---|---|
@@ -2298,3 +2638,59 @@ arena_matches (
 
 `characters.arena_entered` (migration `2026_09_27_170000_character_arena_entered`) is the human's intention. The sim writes `arena_signups` when the bracket is saved, one `consumed` row per entrant, so the draw stays auditable. `SELECT` on `delvebound.*` already lets the website read the bracket. The sim user already has DML on `delvebound.*`, which covers tables created later.
 
+---
+
+## 16. Premium Store
+
+A second shop at `/premium` sells **cosmetics with stats**: titles, wings, auras, pets, and portrait
+frames, plus gold bundles. It is paid in **play dollars**, not gold. Nothing is real money: there is no
+payment provider and no network call. The rules live once in `App\Game\Premium` (pure) and are used by
+the website (`PremiumService`), the bots, the trip, the arena, and the best-map preview.
+
+### 16.1 The wallet **[T]**
+
+- Every character starts with **$100.00** (`balance.json` → `premium.starting_cash_cents` = 10000).
+- `characters.premium_cash` is `NULL` until the first purchase. `NULL` reads as the starting
+  allowance, so existing characters, the six seeded bots, newcomers (§8.0), and new sign-ups all have
+  $100 without a backfill, and the number lives only in `balance.json`.
+- Dollars are only spent. v1 has no way to earn more. The cash can never go negative (`UNSIGNED`).
+
+### 16.2 Catalog (seed `050_premium.sql`)
+
+| Category | Slot rule | Examples (price → bonus) |
+|---|---|---|
+| `title` | one worn; shown next to the name everywhere | the Wanderer $2.99 (+2% HP) · Kingslayer $14.99 (+6% attack, +10% crit dmg) · Ascendant $29.99 (+5% HP/attack/defense, +10% XP) |
+| `wings` | one worn; drawn either side of the portrait | Feathered $9.99 (+2 speed, +1.5% dodge) · Nightwing $14.99 (+3% lifesteal) · Voidrender $44.99 (+8% attack, +10% pierce, +2% crit) |
+| `aura` | one worn; glow behind the portrait | Ember $7.99 (+3% attack) · Frost $7.99 (+4% defense) · Starlight $19.99 (+3% crit, +15% crit dmg) |
+| `pet` | one worn; sits at the portrait's foot | Owl $9.99 (+10% XP) · Lucky Cat $11.99 (+10% MF, +10% gold) · Baby Dragon $24.99 (+4% attack/HP, +5% pierce) |
+| `frame` | one worn; portrait border | Bronze $1.99 · Gilded $4.99 · Celestial $12.99 |
+| `bundle` | not worn; repeatable | Pouch $0.99 → 100 gold · Chest $4.99 → 600 · Dragon's Hoard $9.99 → 1,400 |
+
+A full set of the best piece in each slot costs about $133, so $100 forces a choice. Each piece also
+has a `power` value added to the power level while worn (§6.8). `delve:check-content` flags a non-bundle
+piece without bonuses and any bonus key outside `Stats::BONUS_KEYS`.
+
+### 16.3 Rules (website)
+
+- **Buy** (`POST /premium/buy`): lock the character, check `row_version`, the item exists and is
+  active, it is not already owned (bundles repeat), and the cash covers `price_cents`. A piece becomes
+  owned and is **worn at once** in its category (replacing the worn one, which stays owned). A bundle
+  adds `grant_gold` to `characters.gold`. One `shop_transactions` row: `action='premium'`,
+  `premium_item_id`, `cash_delta`, `cash_after`, `gold_delta` (bundle gold or 0).
+- **Wear** (`POST /premium/wear`) needs an owned piece. **Take off** (`POST /premium/take-off`) empties a
+  category. Neither costs anything.
+- Each write is one transaction behind `auth` + `run.guard`, like every other game write.
+- The page previews, for every piece not worn, the exact change to the derived stats
+  (`Stats::derived` with and without it). React only displays it.
+
+### 16.4 Bots
+
+In the bot phase (§8.2), after the horcrux step, a **bot** (`is_bot = 1`) first wears its best owned
+piece per category, then may buy up to `bot_buys_per_run` (1) pieces. A candidate's gain is
+`Premium::score(after) − score(before)`, where the score is the profile's `gear_weights` over the derived
+stats (the same units as §8.4) plus `premium.bot_extra_weights` for lifesteal, pierce, damage reduction,
+and XP. It buys the largest gain above `bot_min_gain`; ties go to the cheaper piece, then the code. It
+never buys a bundle. The step uses no RNG, so it does not shift later bot rolls. Auto-mode humans skip
+it: a human's dollars are only spent by that human. The decision is written in the bot transaction
+(`premium_cash`, `premium`, ledger rows with `actor='bot'`), and `bot_decisions.decision.premium` lists
+what was bought.

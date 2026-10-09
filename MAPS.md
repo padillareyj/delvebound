@@ -2,7 +2,9 @@
 
 A **map** is a row in `regions`. The map page shows one region at a time. Places on that map are `places` rows with that `region_id`. `map_x` and `map_y` are percentages on **that** region's parchment (0–100), not a shared world map.
 
-The Wilds, the Salt Marches, and the Ashen Crown are the current maps. A new place on an existing map is the shorter checklist at the bottom. A new map is the full list.
+The Wilds, the Salt Marches, and the Ashen Crown are the authored maps. A new place on an existing map is the shorter checklist at the bottom. A new hand-drawn map is the full list.
+
+Later maps are generated. When any active character reaches the highest recommended level in the world, `delve:run` writes the next region (a theme, five places ending in a dungeon, monsters, loot, and an essence). See DESIGN.md §7.1. You do not add a seeder for those.
 
 Rules and the level-gate formula stay in [DESIGN.md](DESIGN.md) §4 and §7.1. If this file and DESIGN.md disagree, DESIGN.md wins.
 

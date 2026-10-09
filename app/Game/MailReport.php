@@ -138,13 +138,16 @@ final class MailReport
             foreach ($enc['drops'] ?? [] as $drop) {
                 $lines[] = '    ► Loot: '.self::itemLine($drop);
             }
+            foreach ($enc['materials'] ?? [] as $mat) {
+                $lines[] = "    ► Material: {$mat['name']} ×{$mat['qty']}";
+            }
         }
         if ($result['outcome'] === 'cleared' && ! empty($result['clear_bonus'])) {
             $lines[] = "Clear bonus: +{$result['clear_bonus']} XP (20%)";
         }
         if (! empty($result['loot_box'])) {
             $rolls = (int) $result['loot_box']['rolls'];
-            $lines[] = "Sealed chest: {$rolls} unopened ".($rolls === 1 ? 'roll' : 'rolls').' waiting in your pack. Open it when you are ready.';
+            $lines[] = "Sealed chest: {$rolls} unopened ".($rolls === 1 ? 'roll' : 'rolls').' waiting in your inventory. Open it when you are ready.';
         }
         $lines[] = self::line('─');
         $lines[] = "TOTALS   XP +{$result['xp_gained']} · Gold +{$result['gold_gained']} · Items ".count($result['items'])." · Kills {$result['kills']}"
@@ -156,6 +159,9 @@ final class MailReport
             $lines[] = 'Defeat: XP and gold halved. Everything found on this trip was lost.';
             foreach ($result['lost_items'] as $drop) {
                 $lines[] = '    Lost: '.self::itemLine($drop);
+            }
+            foreach ($result['lost_materials'] ?? [] as $mat) {
+                $lines[] = "    Lost: {$mat['name']} ×{$mat['qty']}";
             }
         }
         foreach ($result['autosell_owned'] ?? [] as $sold) {

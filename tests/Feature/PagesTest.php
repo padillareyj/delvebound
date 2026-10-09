@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Game\Balance;
+use App\Game\Growth;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -17,14 +19,70 @@ class PagesTest extends TestCase
     {
         [$account] = $this->makePlayer('rey');
         $pages = [
-            '/' => 'Dashboard', '/character' => 'Character', '/pack' => 'Pack', '/market' => 'Market', '/map' => 'Map',
+            '/' => 'Dashboard', '/character' => 'Character', '/market' => 'Market', '/premium' => 'Premium', '/map' => 'Map',
             '/mail' => 'mail/Index', '/leaderboard' => 'Leaderboard', '/bots' => 'Bots', '/arena' => 'Arena', '/account' => 'Account',
             '/runs' => 'Runs', '/admin' => 'admin/Index', '/admin/gear/create' => 'admin/GearForm',
         ];
+        $this->actingAs($account)->get('/pack')->assertRedirect('/character');
         foreach ($pages as $url => $component) {
             $this->actingAs($account)->get($url)->assertOk()
                 ->assertInertia(fn ($page) => $page->component($component)->has('hero')->has('run'));
         }
+    }
+
+    public function test_leaderboard_shows_power_for_players_and_bots(): void
+    {
+        [$account, $char] = $this->makePlayer('rey');
+        DB::table('characters')->where('id', $char['id'])->update([
+            'level' => 4,
+            'skills' => json_encode(['keen_edge' => 2, 'iron_hide' => 1]),
+            'horcrux_tier' => 1,
+        ]);
+        $balance = Balance::get();
+        $expected = Growth::powerLevel(4, ['keen_edge' => 2, 'iron_hide' => 1], 1, $balance);
+
+        $this->actingAs($account)->get('/leaderboard?sort=power')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Leaderboard')
+            ->where('sort', 'power')
+            ->where('rows', function ($rows) use ($char, $expected) {
+                $mine = collect($rows)->firstWhere('id', $char['id']);
+                $bots = collect($rows)->where('is_bot', true);
+
+                return $mine['power'] === $expected
+                    && $bots->isNotEmpty()
+                    && $bots->every(fn ($row) => is_int($row['power']) && $row['power'] > 0)
+                    && collect($rows)->pluck('power')->sortDesc()->values()->all() === collect($rows)->pluck('power')->all();
+            }));
+    }
+
+    public function test_leaderboard_sheet_shows_stats_and_gear_without_inventory(): void
+    {
+        [$account, $char] = $this->makePlayer('rey');
+        $bot = DB::table('characters')->where('is_bot', 1)->first();
+
+        $this->get('/leaderboard/'.$char['id'])->assertRedirect('/login');
+
+        $this->actingAs($account)->get('/leaderboard/'.$char['id'])->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Adventurer')
+            ->where('character.id', $char['id'])
+            ->where('character.is_bot', false)
+            ->has('character.stats.str')
+            ->has('derived.attack')
+            ->has('equipment')
+            ->has('skills')
+            ->has('horcrux.tier')
+            ->missing('inventory')
+            ->missing('materials')
+            ->missing('consumables'));
+
+        $this->actingAs($account)->get('/leaderboard/'.$bot->id.'?sort=power')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Adventurer')
+            ->where('character.is_bot', true)
+            ->where('sort', 'power')
+            ->has('equipment')
+            ->missing('inventory'));
+
+        $this->actingAs($account)->get('/leaderboard/999999')->assertNotFound();
     }
 
     public function test_runs_page_is_admin_only(): void

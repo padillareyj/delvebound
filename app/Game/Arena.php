@@ -35,6 +35,7 @@ final class Arena
             $balance,
             (int) ($char['injury_severity'] ?? 0),
             $buffs,
+            Premium::combinedBonus($char, $balance),
         );
 
         return [
@@ -51,6 +52,9 @@ final class Arena
             'crit' => $stats['crit'],
             'crit_mult' => $stats['crit_mult'],
             'dodge' => $stats['dodge'],
+            'lifesteal' => $stats['lifesteal'],
+            'penetration' => $stats['penetration'],
+            'dmg_reduction' => $stats['dmg_reduction'],
             'damage_type' => $stats['damage_type'],
             'potion_pct' => (int) ($char['potion_threshold_pct'] ?? $balance['character']['default_potion_pct']),
             'belt' => $belt,

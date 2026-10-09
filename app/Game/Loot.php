@@ -161,6 +161,106 @@ final class Loot
         return implode(' ', array_filter([$best('prefix'), $templateName, $best('suffix')], fn ($p) => $p !== ''));
     }
 
+    /**
+     * Legendary title (DESIGN.md §6.4). A unique name replaces the title when the roll says so.
+     * Otherwise an epithet for the strongest stat is joined to a base for this weapon or armor.
+     * Returns null when the pool has no base for this template, so the caller keeps the ordinary name.
+     */
+    public static function legendaryName(array $template, int $ilvl, array $affixes, array $pool, Rng $rng, array $balance): ?string
+    {
+        $itemType = $template['item_type'] ?? null;
+        $slot = $template['slot'] ?? null;
+        $uniques = array_values(array_filter(
+            $pool,
+            fn ($row) => ($row['kind'] ?? '') === 'unique' && self::nameFits($row, $itemType, $slot, $ilvl),
+        ));
+        $bases = array_values(array_filter(
+            $pool,
+            fn ($row) => ($row['kind'] ?? '') === 'base' && self::nameFits($row, $itemType, $slot, $ilvl),
+        ));
+        $loot = $balance['loot'];
+        if ($uniques !== [] && $bases !== []) {
+            $fork = self::weightedPick([
+                ['pick' => 'unique', 'weight' => (float) $loot['legendary_unique_weight']],
+                ['pick' => 'forged', 'weight' => (float) $loot['legendary_forged_weight']],
+            ], $rng, fn ($row) => $row['weight']);
+            if (($fork['pick'] ?? '') === 'unique') {
+                return self::weightedPick($uniques, $rng, fn ($row) => $row['weight'])['name'] ?? null;
+            }
+        } elseif ($uniques !== []) {
+            return self::weightedPick($uniques, $rng, fn ($row) => $row['weight'])['name'] ?? null;
+        }
+        if ($bases === []) {
+            return null;
+        }
+        $base = self::weightedPick($bases, $rng, fn ($row) => $row['weight']);
+        $epithet = null;
+        foreach (self::rankedStats($template, $affixes) as $statKey) {
+            $epithets = array_values(array_filter(
+                $pool,
+                fn ($row) => ($row['kind'] ?? '') === 'epithet'
+                    && ($row['stat_key'] ?? null) === $statKey
+                    && (int) ($row['min_ilvl'] ?? 1) <= $ilvl,
+            ));
+            if ($epithets !== []) {
+                $epithet = self::weightedPick($epithets, $rng, fn ($row) => $row['weight']);
+                break;
+            }
+        }
+        if ($epithet === null) {
+            return $base['name'];
+        }
+        if (($epithet['placement'] ?? 'prefix') === 'suffix') {
+            return $base['name'].' '.$epithet['name'];
+        }
+
+        return $epithet['name'].' '.$base['name'];
+    }
+
+    private static function nameFits(array $row, ?string $itemType, ?string $slot, int $ilvl): bool
+    {
+        if ((int) ($row['min_ilvl'] ?? 1) > $ilvl) {
+            return false;
+        }
+        if (($row['item_type'] ?? null) !== $itemType || ($row['slot'] ?? null) !== $slot) {
+            return false;
+        }
+
+        return $itemType !== null && $slot !== null;
+    }
+
+    /** @return list<string> stat keys, strongest positive value first */
+    private static function rankedStats(array $template, array $affixes): array
+    {
+        $scores = [];
+        foreach ($affixes as $affix) {
+            $key = (string) ($affix['stat_key'] ?? '');
+            $value = (float) ($affix['value'] ?? 0);
+            if ($key === '' || $value <= 0) {
+                continue;
+            }
+            if (! isset($scores[$key]) || $value > $scores[$key]) {
+                $scores[$key] = $value;
+            }
+        }
+        foreach (Stats::implicit($template) as $key => $value) {
+            $value = (float) $value;
+            if ($value <= 0) {
+                continue;
+            }
+            if (! isset($scores[$key]) || $value > $scores[$key]) {
+                $scores[$key] = $value;
+            }
+        }
+        $rows = [];
+        foreach ($scores as $key => $value) {
+            $rows[] = ['key' => $key, 'value' => $value];
+        }
+        usort($rows, fn ($a, $b) => [$b['value'], $a['key']] <=> [$a['value'], $b['key']]);
+
+        return array_column($rows, 'key');
+    }
+
     public static function sellValue(int $baseValue, float $valueMult, int $ilvl, array $balance): int
     {
         $raw = $baseValue * $valueMult * (1 + $balance['loot']['sell_per_ilvl'] * $ilvl);
@@ -184,10 +284,17 @@ final class Loot
         ];
     }
 
-    public static function buildInstance(array $template, int $ilvl, array $rarity, array $affixes, string $source, array $balance): array
+    public static function buildInstance(array $template, int $ilvl, array $rarity, array $affixes, string $source, array $balance, array $legendaryNames = [], ?Rng $rng = null): array
     {
         [$power, $armor, $mres] = self::scaleBases($template, $rarity, $ilvl, $balance);
         $baseValue = (int) ($template['base_value'] ?? 1);
+        $display = self::itemName($template['name'], $affixes);
+        if ($rarity['name'] === 'legendary' && $legendaryNames !== [] && $rng !== null) {
+            $legendary = self::legendaryName($template, $ilvl, $affixes, $legendaryNames, $rng, $balance);
+            if ($legendary !== null && $legendary !== '') {
+                $display = $legendary;
+            }
+        }
 
         return [
             'id' => null,
@@ -208,24 +315,24 @@ final class Loot
             'base_value' => $baseValue,
             'rarity' => $rarity['name'],
             'item_level' => $ilvl,
-            'display_name' => self::itemName($template['name'], $affixes),
+            'display_name' => $display,
             'sell_value' => self::sellValue($baseValue, (float) $rarity['value_mult'], $ilvl, $balance),
             'source' => $source,
             'status' => 'owned',
         ];
     }
 
-    public static function rollItem(array $template, int $sourceLevel, float $luckFactor, array $affixPool, Rng $rng, array $balance, string $source, ?string $minRarity = null): array
+    public static function rollItem(array $template, int $sourceLevel, float $luckFactor, array $affixPool, Rng $rng, array $balance, string $source, ?string $minRarity = null, array $legendaryNames = []): array
     {
         $jitter = (int) $balance['loot']['ilvl_jitter'];
         $ilvl = max((int) $template['req_level'], $sourceLevel + $rng->randint(-$jitter, $jitter));
         $rarity = self::rollRarity($balance, $luckFactor, $rng, $minRarity);
         $affixes = self::rollAffixes($affixPool, $template, $ilvl, (int) $rarity['affixes'], $rng, $balance, $rarity['name'] === 'legendary');
 
-        return self::buildInstance($template, $ilvl, $rarity, $affixes, $source, $balance);
+        return self::buildInstance($template, $ilvl, $rarity, $affixes, $source, $balance, $legendaryNames, $rng);
     }
 
-    public static function tryDrop(?array $monster, ?array $table, int $charLuk, float $luckFactor, array $place, array $affixPool, Rng $rng, array $balance, bool $boss = false, bool $chest = false): ?array
+    public static function tryDrop(?array $monster, ?array $table, int $charLuk, float $luckFactor, array $place, array $affixPool, Rng $rng, array $balance, bool $boss = false, bool $chest = false, array $legendaryNames = []): ?array
     {
         if (! $table || empty($table['entries'])) {
             return null;
@@ -257,7 +364,7 @@ final class Loot
         }
         $luck = $luckFactor + (float) ($place['rarity_bonus'] ?? 0) + $extra;
 
-        return self::rollItem($entry['template'], $sourceLevel, $luck, $affixPool, $rng, $balance, $source, $minRarity);
+        return self::rollItem($entry['template'], $sourceLevel, $luck, $affixPool, $rng, $balance, $source, $minRarity, $legendaryNames);
     }
 
     /**
@@ -279,7 +386,7 @@ final class Loot
      *
      * @return list<array>
      */
-    public static function rollChest(?array $table, int $rolls, float $luckFactor, int $sourceLevel, array $affixPool, Rng $rng, array $balance): array
+    public static function rollChest(?array $table, int $rolls, float $luckFactor, int $sourceLevel, array $affixPool, Rng $rng, array $balance, array $legendaryNames = []): array
     {
         if (! $table || empty($table['entries']) || $rolls < 1) {
             return [];
@@ -290,7 +397,7 @@ final class Loot
             if ($entry === null || ($entry['entry_type'] ?? null) === 'nothing' || empty($entry['template'])) {
                 continue;
             }
-            $item = self::rollItem($entry['template'], $sourceLevel, $luckFactor, $affixPool, $rng, $balance, 'chest');
+            $item = self::rollItem($entry['template'], $sourceLevel, $luckFactor, $affixPool, $rng, $balance, 'chest', null, $legendaryNames);
             $item['encounter_seq'] = null;
             $items[] = $item;
         }

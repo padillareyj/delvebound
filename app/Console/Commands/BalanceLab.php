@@ -56,6 +56,7 @@ class BalanceLab extends Command
                 ],
                 'place' => $place, 'town' => $world['town'], 'plan' => 'combat', 'order_id' => null,
                 'reject_reason' => null, 'open_places' => [], 'affixes' => $world['affixes'],
+                'legendary_names' => $world['legendary_names'] ?? [],
                 'inventory_count' => 0, 'commons' => [], 'balance' => $balance, 'run_seed' => $seed, 'run_id' => 0,
             ];
             $result = Trip::resolve($ctx, Rng::trip($seed + $i, 1));

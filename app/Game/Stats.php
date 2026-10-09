@@ -7,7 +7,13 @@ final class Stats
 {
     public const PRIMARY = ['str', 'dex', 'int', 'vit', 'luk'];
 
-    public static function derived(array $stats, int $level, array $equipment, ?array $balance = null, int $injury = 0, array $buffs = []): array
+    /** Keys a bonus source (skills, horcrux, premium) may set (DESIGN.md §3.2.1). */
+    public const BONUS_KEYS = [
+        'hp', 'attack', 'defense', 'mres', 'crit_pct', 'crit_dmg_pct', 'dodge_pct', 'speed', 'magic_find_pct', 'gold_find_pct',
+        'hp_pct', 'attack_pct', 'defense_pct', 'lifesteal_pct', 'penetration_pct', 'dmg_reduction_pct', 'xp_pct',
+    ];
+
+    public static function derived(array $stats, int $level, array $equipment, ?array $balance = null, int $injury = 0, array $buffs = [], array $bonus = []): array
     {
         $balance ??= Balance::get();
         $d = $balance['derived'];
@@ -59,6 +65,26 @@ final class Stats
         $luck = $d['luck_per_luk'] * $luk + self::gearSum($equipment, 'magic_find_pct') / 100;
         $goldFind = $d['gold_find_base'] + $d['gold_find_per_luk'] * $luk + self::gearSum($equipment, 'gold_find_pct') / 100;
 
+        $attack += (float) ($bonus['attack'] ?? 0);
+        $defense += (float) ($bonus['defense'] ?? 0);
+        $magicRes += (float) ($bonus['mres'] ?? 0);
+        $hp += (float) ($bonus['hp'] ?? 0);
+        $crit += (float) ($bonus['crit_pct'] ?? 0);
+        $luck += (float) ($bonus['magic_find_pct'] ?? 0) / 100;
+        $critMult += (float) ($bonus['crit_dmg_pct'] ?? 0) / 100;
+        $dodge += (float) ($bonus['dodge_pct'] ?? 0);
+        $speed += (float) ($bonus['speed'] ?? 0);
+        $goldFind += (float) ($bonus['gold_find_pct'] ?? 0) / 100;
+
+        $hp = self::scaled($hp, (float) ($bonus['hp_pct'] ?? 0));
+        $attack = self::scaled($attack, (float) ($bonus['attack_pct'] ?? 0));
+        $defense = self::scaled($defense, (float) ($bonus['defense_pct'] ?? 0));
+        $magicRes = self::scaled($magicRes, (float) ($bonus['defense_pct'] ?? 0));
+        $lifesteal = min(max(0.0, (float) ($bonus['lifesteal_pct'] ?? 0)), (float) $d['lifesteal_cap']);
+        $penetration = min(max(0.0, (float) ($bonus['penetration_pct'] ?? 0)), (float) $d['penetration_cap']);
+        $dmgReduction = min(max(0.0, (float) ($bonus['dmg_reduction_pct'] ?? 0)), (float) $d['dmg_reduction_cap']);
+        $xpMult = 1 + min(max(0.0, (float) ($bonus['xp_pct'] ?? 0)), (float) $d['xp_bonus_cap']) / 100;
+
         $crit = min((float) $crit, (float) $d['crit_cap']);
         $critMult = min((float) $critMult, (float) $d['crit_mult_cap']);
         $dodge = min((float) $dodge, (float) $d['dodge_cap']);
@@ -93,6 +119,10 @@ final class Stats
             'regen' => $regen,
             'luck' => $luck,
             'gold_find' => $goldFind,
+            'lifesteal' => $lifesteal,
+            'penetration' => $penetration,
+            'dmg_reduction' => $dmgReduction,
+            'xp_mult' => $xpMult,
             'damage_type' => $damageType,
             'str' => (int) $str,
             'dex' => (int) $dex,
@@ -121,6 +151,24 @@ final class Stats
         }
 
         return (array) $raw;
+    }
+
+    /** Sum several bonus maps key by key. */
+    public static function mergeBonus(array ...$maps): array
+    {
+        $total = [];
+        foreach ($maps as $map) {
+            foreach ($map as $key => $value) {
+                $total[$key] = ($total[$key] ?? 0.0) + (float) $value;
+            }
+        }
+
+        return $total;
+    }
+
+    private static function scaled(float|int $value, float $pct): float|int
+    {
+        return $pct == 0 ? $value : Numbers::halfUp($value * (1 + $pct / 100));
     }
 
     private static function gearSum(array $equipment, string $key): float

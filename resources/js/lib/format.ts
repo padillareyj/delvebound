@@ -68,22 +68,58 @@ export const DERIVED_LABELS: Record<string, string> = {
     regen: 'Regen',
     luck: 'Luck',
     gold_find: 'Gold Find',
+    lifesteal: 'Lifesteal',
+    penetration: 'Armor Pierce',
+    dmg_reduction: 'Damage Taken',
+    xp_mult: 'XP Gain',
 };
 
-export const PERCENT_KEYS = new Set(['crit', 'dodge', 'regen']);
+export const PERCENT_KEYS = new Set(['crit', 'dodge', 'regen', 'lifesteal', 'penetration']);
 
 export function derivedValue(key: string, value: number): string {
     if (PERCENT_KEYS.has(key)) return `${round1(value)}%`;
+    if (key === 'dmg_reduction') return value > 0 ? `−${round1(value)}%` : '0%';
     if (key === 'luck') return `${Math.round(value * 100)}%`;
-    if (key === 'gold_find' || key === 'crit_mult') return `×${value.toFixed(2)}`;
+    if (key === 'gold_find' || key === 'crit_mult' || key === 'xp_mult') return `×${value.toFixed(2)}`;
     return num(Math.round(value));
 }
 
 export function derivedDelta(key: string, value: number): string {
-    if (PERCENT_KEYS.has(key)) return `${value > 0 ? '+' : ''}${round1(value)}%`;
+    if (PERCENT_KEYS.has(key) || key === 'dmg_reduction') return `${value > 0 ? '+' : ''}${round1(value)}%`;
     if (key === 'luck') return `${value > 0 ? '+' : ''}${round1(value * 100)}%`;
-    if (key === 'gold_find' || key === 'crit_mult') return `${value > 0 ? '+' : ''}${value.toFixed(2)}`;
+    if (key === 'gold_find' || key === 'crit_mult' || key === 'xp_mult') return `${value > 0 ? '+' : ''}${value.toFixed(2)}`;
     return signed(Math.round(value * 10) / 10);
+}
+
+export const BONUS_LABELS: Record<string, string> = {
+    hp: 'Max HP',
+    attack: 'Attack',
+    defense: 'Defense',
+    mres: 'Magic Res',
+    speed: 'Speed',
+    crit_pct: 'Crit Rate',
+    crit_dmg_pct: 'Crit Damage',
+    dodge_pct: 'Dodge',
+    magic_find_pct: 'Magic Find',
+    gold_find_pct: 'Gold Bonus',
+    hp_pct: 'HP Bonus',
+    attack_pct: 'Attack Bonus',
+    defense_pct: 'Defense Bonus',
+    lifesteal_pct: 'Lifesteal',
+    penetration_pct: 'Armor Pierce',
+    dmg_reduction_pct: 'Damage Reduction',
+    xp_pct: 'XP Bonus',
+};
+
+export const BONUS_ORDER = Object.keys(BONUS_LABELS);
+
+export function bonusLine(key: string, value: number): string {
+    const pct = key.endsWith('_pct');
+    return `${value > 0 ? '+' : ''}${round1(value)}${pct ? '%' : ''} ${BONUS_LABELS[key] ?? key}`;
+}
+
+export function money(cents: number): string {
+    return `$${(cents / 100).toFixed(2)}`;
 }
 
 const round1 = (v: number) => (Math.round(v * 10) / 10).toString();

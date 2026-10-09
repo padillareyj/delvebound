@@ -17,12 +17,16 @@ class CoreTest extends GameTestCase
     {
         $gained = Progression::applyXp(1, 0, 500, self::$balance);
         $this->assertSame(3, $gained['level']);
-        $this->assertSame(100, $gained['xp']);
+        $this->assertSame(80, $gained['xp']);
         $this->assertSame(10, $gained['points']);
         $this->assertSame(40 + 60, $gained['gold']);
         $this->assertSame(100, Progression::monsterXp(100, 5, 5, self::$balance));
         $this->assertSame(20, Progression::monsterXp(100, 1, 10, self::$balance));
         $this->assertSame(150, Progression::monsterXp(100, 20, 10, self::$balance));
+        $this->assertSame(30, Progression::levelCap(self::$balance, 16));
+        $raised = self::$balance;
+        $raised['character']['level_cap'] = Progression::levelCap(self::$balance, 32);
+        $this->assertSame(32, Progression::applyXp(30, 0, 500000, $raised)['level']);
     }
 
     public function test_injury_transitions(): void
@@ -114,6 +118,42 @@ class CoreTest extends GameTestCase
         $this->assertNotContains('attack', $keys);
         $this->assertLessThanOrEqual(2, count(array_filter($rolled, fn ($a) => $a['kind'] === 'prefix')));
         $this->assertSame(count($keys), count(array_unique($keys)));
+    }
+
+    public function test_legendary_name_follows_the_weapon_and_its_strongest_stat(): void
+    {
+        $pool = [
+            ['kind' => 'base', 'name' => 'Edge', 'item_type' => 'sword', 'slot' => 'weapon', 'stat_key' => null, 'placement' => null, 'min_ilvl' => 1, 'weight' => 100],
+            ['kind' => 'base', 'name' => 'Cleaver', 'item_type' => 'axe', 'slot' => 'weapon', 'stat_key' => null, 'placement' => null, 'min_ilvl' => 1, 'weight' => 100],
+            ['kind' => 'epithet', 'name' => 'Leeching', 'item_type' => null, 'slot' => null, 'stat_key' => 'hp', 'placement' => 'prefix', 'min_ilvl' => 1, 'weight' => 100],
+            ['kind' => 'epithet', 'name' => 'of the Titan', 'item_type' => null, 'slot' => null, 'stat_key' => 'str', 'placement' => 'suffix', 'min_ilvl' => 1, 'weight' => 100],
+            ['kind' => 'unique', 'name' => 'Excalibur', 'item_type' => 'sword', 'slot' => 'weapon', 'stat_key' => null, 'placement' => null, 'min_ilvl' => 12, 'weight' => 100],
+            ['kind' => 'unique', 'name' => 'Ragnarok', 'item_type' => 'axe', 'slot' => 'weapon', 'stat_key' => null, 'placement' => null, 'min_ilvl' => 20, 'weight' => 100],
+        ];
+        $sword = ['name' => 'Rusty Sword', 'item_type' => 'sword', 'slot' => 'weapon', 'implicit' => []];
+        $affixes = [
+            ['kind' => 'prefix', 'name' => 'Vital', 'stat_key' => 'hp', 'value' => 12],
+            ['kind' => 'suffix', 'name' => 'of the Bear', 'stat_key' => 'str', 'value' => 2],
+        ];
+        $forged = self::$balance;
+        $forged['loot']['legendary_unique_weight'] = 0;
+        $forged['loot']['legendary_forged_weight'] = 100;
+        $this->assertSame('Leeching Edge', Loot::legendaryName($sword, 5, $affixes, $pool, Rng::trip(1, 1), $forged));
+
+        $unique = self::$balance;
+        $unique['loot']['legendary_unique_weight'] = 100;
+        $unique['loot']['legendary_forged_weight'] = 0;
+        $this->assertSame('Excalibur', Loot::legendaryName($sword, 12, $affixes, $pool, Rng::trip(1, 1), $unique));
+        $this->assertSame('Leeching Edge', Loot::legendaryName($sword, 11, $affixes, $pool, Rng::trip(1, 1), $unique));
+        $axe = ['name' => 'War Axe', 'item_type' => 'axe', 'slot' => 'weapon', 'implicit' => ['hp' => 8]];
+        $this->assertSame('Ragnarok', Loot::legendaryName($axe, 20, [], $pool, Rng::trip(2, 2), $unique));
+
+        $this->assertSame('Keen Worn Dagger of the Owl', Loot::itemName('Worn Dagger', [
+            ['kind' => 'prefix', 'name' => 'Keen', 'value' => 2],
+            ['kind' => 'suffix', 'name' => 'of the Owl', 'value' => 1],
+        ]));
+        $again = Loot::legendaryName($sword, 5, $affixes, $pool, Rng::trip(1, 1), $forged);
+        $this->assertSame('Leeching Edge', $again);
     }
 
     public function test_chest_roll_count_grows_with_place_level(): void

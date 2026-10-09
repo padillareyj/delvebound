@@ -13,7 +13,7 @@ class FixturesTest extends GameTestCase
     public function test_derived_stats_fixture(): void
     {
         foreach (self::fixture('derived_stats_cases.json') as $case) {
-            $got = Stats::derived($case['stats'], $case['level'], $case['equipment'], self::$balance, $case['injury'], $case['buffs']);
+            $got = Stats::derived($case['stats'], $case['level'], $case['equipment'], self::$balance, $case['injury'], $case['buffs'], $case['bonus'] ?? []);
             foreach ($case['expected'] as $key => $expected) {
                 if (is_float($expected)) {
                     $this->assertEqualsWithDelta($expected, $got[$key], 1e-6, "{$case['name']}: {$key}");

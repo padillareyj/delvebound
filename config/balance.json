@@ -44,7 +44,11 @@
     "gold_find_base": 1,
     "gold_find_per_luk": 0.01,
     "gold_find_cap": 3.0,
-    "unarmed_power": 1
+    "unarmed_power": 1,
+    "lifesteal_cap": 20,
+    "penetration_cap": 50,
+    "dmg_reduction_cap": 30,
+    "xp_bonus_cap": 100
   },
   "injury": {
     "wounded_hp_mult": 0.8,
@@ -80,6 +84,7 @@
   "xp": {
     "base": 100,
     "exponent": 1.6,
+    "growth": 0.05,
     "round_to": 10,
     "points_per_level": 5,
     "bonus_every": 5,
@@ -102,6 +107,8 @@
     "chest_rolls_base": 2,
     "chest_rolls_every": 10,
     "chest_rolls_cap": 4,
+    "legendary_unique_weight": 25,
+    "legendary_forged_weight": 100,
     "rarity": [
       {"name": "common", "weight": 600, "affixes": 0, "stat_mult": 1.0, "value_mult": 1},
       {"name": "uncommon", "weight": 250, "affixes": 1, "stat_mult": 1.1, "value_mult": 2},
@@ -154,5 +161,143 @@
       "speed": 2,
       "mf": 5
     }
+  },
+  "newcomers": {
+    "max_bots": 48,
+    "spawn_chance": 0.1,
+    "mononym_chance": 0.3,
+    "fresh_chance": 0.4,
+    "top_window": 5,
+    "gear_lag": 3,
+    "gold_per_level": 40,
+    "kit_slots": ["weapon", "offhand", "head", "chest", "hands", "feet", "ring", "amulet"]
+  },
+  "growth": {
+    "power_per_level": 10,
+    "power_per_skill_rank": 4,
+    "power_per_horcrux_tier": 8,
+    "bot_farm_chance": 0.45,
+    "bot_feed_per_run": 3,
+    "bot_ranks_per_run": 1,
+    "max_rank": 5,
+    "drops": {
+      "dust": {"chance": 0.4, "qty_min": 1, "qty_max": 2, "boss_mult": 2},
+      "shard": {"chance": 0.12, "qty_min": 1, "qty_max": 1, "boss_mult": 3},
+      "essence": {"chance": 0.07, "qty_min": 1, "qty_max": 1, "boss_mult": 4}
+    },
+    "skills": [
+      {"code": "keen_edge", "name": "Keen Edge", "glyph": "⚔️", "blurb": "A cleaner cut.", "attack": 2},
+      {"code": "iron_hide", "name": "Iron Hide", "glyph": "🛡️", "blurb": "Skin like worked mail.", "defense": 1, "mres": 1},
+      {"code": "fortune", "name": "Fortune", "glyph": "🍀", "blurb": "The drop lands face-up.", "crit_pct": 0.5, "magic_find_pct": 1}
+    ],
+    "ranks": [
+      {"rank": 1, "gold": 40, "material": "spark_dust", "qty": 2},
+      {"rank": 2, "gold": 90, "material": "spark_dust", "qty": 4},
+      {"rank": 3, "gold": 180, "material": "rune_shard", "qty": 2},
+      {"rank": 4, "gold": 360, "material": "rune_shard", "qty": 4},
+      {"rank": 5, "gold": 700, "material": "essence", "qty": 1}
+    ],
+    "horcrux": {
+      "name": "Horcrux",
+      "feed": {"common": 4, "uncommon": 10, "rare": 25, "epic": 60, "legendary": 140, "per_ilvl": 1},
+      "thresholds": [0, 24, 70, 160, 340, 700],
+      "per_tier": {"hp": 6, "attack": 1, "defense": 1}
+    }
+  },
+  "world": {
+    "places_per_region": 5,
+    "overlap": 2,
+    "band_width": 3,
+    "band_step": 3,
+    "dungeon_band_width": 11,
+    "max_regions_per_run": 3,
+    "encounter_min_base": 4,
+    "encounter_min_per": 10,
+    "encounter_span": 2,
+    "encounter_cap": 8,
+    "boss_chance_base": 0.35,
+    "boss_chance_step": 0.02,
+    "boss_chance_cap": 0.45,
+    "rarity_base": 0.12,
+    "rarity_step": 0.04,
+    "gold_base": 1.10,
+    "gold_step": 0.08,
+    "loot_nothing": 5,
+    "loot_item": 8,
+    "pins": [[22, 72], [38, 50], [54, 64], [70, 38], [84, 20]],
+    "monster": {
+      "hp_base": 20,
+      "hp_per_level": 12,
+      "atk_base": 5,
+      "atk_per_level": 2.5,
+      "def_base": 1,
+      "def_per_level": 1.2,
+      "mres_base": 1,
+      "mres_per_level": 1,
+      "speed_base": 8,
+      "xp_factor": 10,
+      "xp_exp": 1.5,
+      "gold_min_per_level": 2,
+      "gold_max_per_level": 4,
+      "trash_drop": 0.16,
+      "depth_pressure": 0.14,
+      "boss_depth_pressure": 0.035
+    },
+    "roles": {
+      "skirmisher": {"hp": 0.85, "atk": 1.05, "def": 0.80, "mres": 0.90, "speed": 6, "crit": 8, "dodge": 12, "xp": 1, "gold": 1, "group": [1, 2], "weight": 45},
+      "brute": {"hp": 1.35, "atk": 0.95, "def": 1.45, "mres": 0.75, "speed": -2, "crit": 5, "dodge": 0, "xp": 1, "gold": 1, "group": [1, 1], "weight": 35},
+      "caster": {"hp": 0.80, "atk": 1.15, "def": 0.65, "mres": 1.35, "speed": 3, "crit": 6, "dodge": 8, "xp": 1, "gold": 1, "group": [1, 2], "weight": 20},
+      "boss": {"hp": 2.50, "atk": 1.30, "def": 1.35, "mres": 1.25, "speed": 1, "crit": 8, "dodge": 5, "xp": 3, "gold": 4, "group": [1, 1], "weight": 0}
+    },
+    "gear": {
+      "power_base": 6,
+      "power_per_level": 1.7,
+      "two_hand_mult": 1.15,
+      "armor_base": 4,
+      "armor_per_level": 1.1,
+      "helm_base": 2,
+      "helm_per_level": 0.35,
+      "helm_mres_div": 8,
+      "staff_mres_div": 5,
+      "bow_speed": 2,
+      "int_per": 8,
+      "luk_per": 8,
+      "value_factor": 1.15
+    }
+  },
+  "premium": {
+    "starting_cash_cents": 10000,
+    "categories": ["title", "wings", "aura", "pet", "frame"],
+    "bot_buys_per_run": 1,
+    "bot_min_gain": 0.5,
+    "bot_extra_weights": {
+      "lifesteal": 1.0,
+      "penetration": 0.3,
+      "dmg_reduction": 1.0,
+      "xp_pct": 0.2
+    }
+  },
+  "forge": {
+    "base_gold": 15,
+    "gold_per_ilvl": 8,
+    "rarity_gold_mult": {
+      "common": 1,
+      "uncommon": 1.5,
+      "rare": 2,
+      "epic": 3,
+      "legendary": 5
+    },
+    "fail_weight": 500,
+    "craft_weight": 420,
+    "masterpiece_weight": 80,
+    "fail_cut_per_tier": 0.18,
+    "fail_floor": 0.12,
+    "masterpiece_per_tier": 0.75,
+    "luck_per_luk": 0.01,
+    "luck_cap": 1.5,
+    "craft_luck": 0.15,
+    "masterpiece_luck": 0.8,
+    "masterpiece_ilvl_bonus": 1,
+    "template_near": 10
   }
 }

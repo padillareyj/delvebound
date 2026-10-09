@@ -162,6 +162,11 @@ final class Gear
         return $current;
     }
 
+    public static function isUseful(array $state, array $item, array $balance): bool
+    {
+        return self::improves($state, $item, $balance);
+    }
+
     private static function improves(array $state, array $item, array $balance): bool
     {
         $items = self::ownedLegal($state);

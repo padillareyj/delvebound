@@ -1,12 +1,15 @@
 [
   {"level": 1, "xp_to_next": 100},
-  {"level": 2, "xp_to_next": 300},
-  {"level": 3, "xp_to_next": 580},
-  {"level": 4, "xp_to_next": 920},
-  {"level": 5, "xp_to_next": 1310},
-  {"level": 6, "xp_to_next": 1760},
-  {"level": 7, "xp_to_next": 2250},
-  {"level": 8, "xp_to_next": 2790},
-  {"level": 9, "xp_to_next": 3360},
-  {"level": 10, "xp_to_next": 3980}
+  {"level": 2, "xp_to_next": 320},
+  {"level": 3, "xp_to_next": 640},
+  {"level": 4, "xp_to_next": 1060},
+  {"level": 5, "xp_to_next": 1600},
+  {"level": 6, "xp_to_next": 2240},
+  {"level": 7, "xp_to_next": 3020},
+  {"level": 8, "xp_to_next": 3920},
+  {"level": 9, "xp_to_next": 4970},
+  {"level": 10, "xp_to_next": 6180},
+  {"level": 15, "xp_to_next": 15080},
+  {"level": 20, "xp_to_next": 30500},
+  {"level": 30, "xp_to_next": 95040}
 ]

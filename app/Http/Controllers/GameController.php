@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\AccountService;
 use App\Services\CharacterService;
+use App\Services\ForgeService;
 use App\Services\GameQueries;
 use App\Services\LootBoxService;
 use Illuminate\Http\RedirectResponse;
@@ -36,7 +37,15 @@ class GameController extends Controller
 
     public function character(Request $request): Response
     {
-        return Inertia::render('Character', $this->queries->characterPage($this->accountId($request)));
+        $page = $this->queries->characterPage($this->accountId($request));
+        $page['forgeQuote'] = null;
+        $left = $request->query('forge_a');
+        $right = $request->query('forge_b');
+        if (is_numeric($left) && is_numeric($right)) {
+            $page['forgeQuote'] = $this->queries->forgeQuote($this->accountId($request), (int) $left, (int) $right);
+        }
+
+        return Inertia::render('Character', $page);
     }
 
     public function map(Request $request): Response
@@ -52,6 +61,16 @@ class GameController extends Controller
     public function leaderboard(Request $request): Response
     {
         return Inertia::render('Leaderboard', $this->queries->leaderboard((string) $request->query('sort', 'level')));
+    }
+
+    public function adventurer(Request $request, int $id): Response
+    {
+        $sorts = ['level', 'power', 'gold', 'bosses', 'clears', 'kills', 'defeats'];
+        $sort = (string) $request->query('sort', 'level');
+
+        return Inertia::render('Adventurer', $this->queries->publicSheet($id) + [
+            'sort' => in_array($sort, $sorts, true) ? $sort : 'level',
+        ]);
     }
 
     public function bots(): Response
@@ -117,11 +136,21 @@ class GameController extends Controller
             'retreat_threshold_pct' => ['required', 'integer', 'between:0,90'],
             'potion_threshold_pct' => ['required', 'integer', 'between:0,100'],
             'auto_repeat' => ['required', 'boolean'],
+            'auto_mode' => ['required', 'boolean'],
+            'auto_profile' => ['nullable', 'string', 'max:40'],
+            'auto_place' => ['required', 'in:profile,best'],
         ]);
         $this->characters->updatePrep($this->accountId($request), $this->version($request),
-            (int) $data['retreat_threshold_pct'], (int) $data['potion_threshold_pct'], (bool) $data['auto_repeat']);
+            (int) $data['retreat_threshold_pct'], (int) $data['potion_threshold_pct'], (bool) $data['auto_repeat'],
+            (bool) $data['auto_mode'], $data['auto_profile'] ?? null, $data['auto_place']);
 
-        return back()->with('success', 'Expedition settings saved.');
+        $saved = $data['auto_mode']
+            ? ($data['auto_place'] === 'best'
+                ? 'Auto mode is on. The next run will pick the best map you can clear.'
+                : 'Auto mode is on. The next run will plan for you.')
+            : 'Expedition settings saved.';
+
+        return back()->with('success', $saved);
     }
 
     public function respec(Request $request): RedirectResponse
@@ -133,9 +162,24 @@ class GameController extends Controller
 
     // ---------------------------------------------------------------- pack
 
-    public function pack(Request $request): Response
+    public function pack(): RedirectResponse
     {
-        return Inertia::render('Pack', $this->queries->packPage($this->accountId($request)));
+        return redirect('/character');
+    }
+
+    public function trainSkill(Request $request, string $code): RedirectResponse
+    {
+        $name = $this->characters->trainSkill($this->accountId($request), $this->version($request), $code);
+
+        return back()->with('success', "{$name} ranks up.");
+    }
+
+    public function feedHorcrux(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['item_id' => ['required', 'integer']]);
+        $name = $this->characters->feedHorcrux($this->accountId($request), $this->version($request), (int) $data['item_id']);
+
+        return back()->with('success', "The horcrux drinks {$name}.");
     }
 
     public function equip(Request $request): RedirectResponse
@@ -167,6 +211,17 @@ class GameController extends Controller
         $this->characters->useBandage($this->accountId($request), $this->version($request));
 
         return back()->with('success', 'Bandaged up. You are healthy again.');
+    }
+
+    public function forge(Request $request, ForgeService $forge): RedirectResponse
+    {
+        $data = $request->validate([
+            'item_a' => ['required', 'integer'],
+            'item_b' => ['required', 'integer'],
+        ]);
+        $result = $forge->combine($this->accountId($request), $this->version($request), (int) $data['item_a'], (int) $data['item_b']);
+
+        return back()->with('forged', $result);
     }
 
     public function openChest(Request $request, LootBoxService $chests, int $id): RedirectResponse

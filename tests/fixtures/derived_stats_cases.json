@@ -64,5 +64,25 @@
     "injury": 0,
     "buffs": [],
     "expected": {"crit": 50, "dodge": 35, "regen": 40, "luck": 1.5, "gold_find": 3.0}
+  },
+  {
+    "name": "percent_bonus_layer",
+    "level": 1,
+    "stats": {"str": 5, "dex": 5, "int": 5, "vit": 5, "luk": 5},
+    "equipment": [],
+    "injury": 0,
+    "buffs": [],
+    "bonus": {"hp_pct": 10, "attack_pct": 50, "defense_pct": 100, "speed": 3, "crit_dmg_pct": 20, "gold_find_pct": 15, "lifesteal_pct": 50, "penetration_pct": 10, "dmg_reduction_pct": 5, "xp_pct": 25},
+    "expected": {"hp": 92, "attack": 11, "defense": 6, "mres": 6, "speed": 18, "crit_mult": 1.7, "gold_find": 1.2, "lifesteal": 20.0, "penetration": 10.0, "dmg_reduction": 5.0, "xp_mult": 1.25}
+  },
+  {
+    "name": "percent_bonus_then_wound",
+    "level": 1,
+    "stats": {"str": 5, "dex": 5, "int": 5, "vit": 5, "luk": 5},
+    "equipment": [],
+    "injury": 1,
+    "buffs": [],
+    "bonus": {"hp": 6, "hp_pct": 10, "attack_pct": 50},
+    "expected": {"hp": 79, "attack": 10, "lifesteal": 0.0, "penetration": 0.0, "dmg_reduction": 0.0, "xp_mult": 1.0}
   }
 ]

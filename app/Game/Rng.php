@@ -36,6 +36,27 @@ final class Rng
         return new self("chest:{$seed}");
     }
 
+    /** One newcomer born at the start of a run. The bot count keeps the roll stable if the insert id changes. */
+    public static function arrival(int $seed, int $activeBots): self
+    {
+        return new self("{$seed}:arrival:{$activeBots}");
+    }
+
+    /** One generated region. The key is the frontier place plus the new map's order, so the map does not depend on the run seed. */
+    public static function world(string $key): self
+    {
+        return new self("world:{$key}");
+    }
+
+    /** One forge attempt. Item ids are sorted so the sequence does not depend on which piece was placed first. */
+    public static function forge(int $seed, int $characterId, int $itemA, int $itemB): self
+    {
+        $low = min($itemA, $itemB);
+        $high = max($itemA, $itemB);
+
+        return new self("{$seed}:forge:{$characterId}:{$low}:{$high}");
+    }
+
     /** Bracket shuffle for one arena (DESIGN.md §15). */
     public static function arena(int $seed): self
     {

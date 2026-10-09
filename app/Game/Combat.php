@@ -43,12 +43,16 @@ final class Combat
         return $chance;
     }
 
-    public static function resolveAttack(array $attacker, array &$target, Rng $rng, array $balance): array
+    public static function resolveAttack(array &$attacker, array &$target, Rng $rng, array $balance): array
     {
         if ($rng->random() * 100 < $target['dodge']) {
             return ['ev' => 'dodge'];
         }
         $defense = $attacker['damage_type'] === 'physical' ? $target['defense'] : $target['mres'];
+        $penetration = (float) ($attacker['penetration'] ?? 0);
+        if ($penetration > 0) {
+            $defense *= 1 - $penetration / 100;
+        }
         $attack = $attacker['attack'];
         $denom = $attack + $defense;
         $base = $denom <= 0 ? $attack : ($attack * $attack) / $denom;
@@ -59,10 +63,36 @@ final class Combat
             $damage *= $attacker['crit_mult'];
             $crit = true;
         }
+        $reduction = (float) ($target['dmg_reduction'] ?? 0);
+        if ($reduction > 0) {
+            $damage *= 1 - $reduction / 100;
+        }
         $damage = max((int) $c['min_damage'], Numbers::halfUp($damage));
         $target['hp'] -= $damage;
+        $event = ['ev' => 'hit', 'dmg' => $damage, 'crit' => $crit, 'thp' => max(0, $target['hp'])];
+        $heal = self::lifesteal($attacker, $damage);
+        if ($heal > 0) {
+            $event['heal'] = $heal;
+            $event['ahp'] = $attacker['hp'];
+        }
 
-        return ['ev' => 'hit', 'dmg' => $damage, 'crit' => $crit, 'thp' => max(0, $target['hp'])];
+        return $event;
+    }
+
+    /** Heal the attacker by its lifesteal share of the damage dealt, up to max HP. */
+    public static function lifesteal(array &$attacker, int $damage): int
+    {
+        $pct = (float) ($attacker['lifesteal'] ?? 0);
+        if ($pct <= 0 || ! isset($attacker['max_hp']) || $attacker['hp'] <= 0) {
+            return 0;
+        }
+        $heal = min(Numbers::halfUp($damage * $pct / 100), (int) $attacker['max_hp'] - (int) $attacker['hp']);
+        if ($heal <= 0) {
+            return 0;
+        }
+        $attacker['hp'] += $heal;
+
+        return $heal;
     }
 
     /**

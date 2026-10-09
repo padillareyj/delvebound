@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\GameException;
 use App\Game\Balance;
+use App\Game\Growth;
 use App\Game\Progression;
 use App\Game\Rules;
 use App\Game\ShopMath;
@@ -65,18 +66,34 @@ class CharacterService
         });
     }
 
-    public function updatePrep(int $accountId, int $version, int $retreat, int $potion, bool $autoRepeat): void
+    public function updatePrep(int $accountId, int $version, int $retreat, int $potion, bool $autoRepeat, bool $autoMode, ?string $autoProfile, string $autoPlace = 'profile'): void
     {
         if ($retreat < 0 || $retreat > 90 || $potion < 0 || $potion > 100) {
             throw new GameException('Retreat must be 0–90% and the potion threshold 0–100%.');
         }
-        DB::transaction(function () use ($accountId, $version, $retreat, $potion, $autoRepeat) {
+        if (! in_array($autoPlace, ['profile', 'best'], true)) {
+            throw new GameException('Pick how auto mode chooses the map.');
+        }
+        $profileId = null;
+        if ($autoProfile !== null && $autoProfile !== '') {
+            $profileId = DB::table('bot_profiles')->where('code', $autoProfile)->value('id');
+            if (! $profileId) {
+                throw new GameException('Pick one of the rival personalities.');
+            }
+        }
+        if ($autoMode && ! $profileId) {
+            throw new GameException('Auto mode needs a personality to follow.');
+        }
+        DB::transaction(function () use ($accountId, $version, $retreat, $potion, $autoRepeat, $autoMode, $profileId, $autoPlace) {
             $char = $this->lock($accountId);
             $this->checkVersion($char, $version);
             DB::table('characters')->where('id', $char['id'])->update([
                 'retreat_threshold_pct' => $retreat,
                 'potion_threshold_pct' => $potion,
                 'auto_repeat' => $autoRepeat ? 1 : 0,
+                'auto_mode' => $autoMode ? 1 : 0,
+                'auto_profile_id' => $profileId,
+                'auto_place' => $autoPlace,
                 'row_version' => DB::raw('row_version + 1'),
             ]);
         });
@@ -289,6 +306,109 @@ class CharacterService
                 'row_version' => DB::raw('row_version + 1'),
             ]);
         });
+    }
+
+    public function trainSkill(int $accountId, int $version, string $code): string
+    {
+        return DB::transaction(function () use ($accountId, $version, $code) {
+            $char = $this->lock($accountId);
+            $this->checkVersion($char, $version);
+            $balance = Balance::get();
+            $skill = Growth::skillByCode($code, $balance);
+            if ($skill === null) {
+                throw new GameException('That skill does not exist.');
+            }
+            $cid = (int) $char['id'];
+            $ranks = self::jsonMap($char['skills'] ?? null);
+            $rank = (int) ($ranks[$code] ?? 0);
+            $cost = Growth::rankCost($rank + 1, $balance);
+            if ($cost === null) {
+                throw new GameException("{$skill['name']} is already at its highest rank.");
+            }
+            if ((int) $char['gold'] < (int) $cost['gold']) {
+                throw new GameException("Rank ".($rank + 1)." costs {$cost['gold']} gold.");
+            }
+            $materials = $this->materialStacks($char);
+            if (! Growth::pay($materials, $cost['material'], (int) $cost['qty'])) {
+                throw new GameException('You do not have the materials for that rank.');
+            }
+            $ranks[$code] = $rank + 1;
+            DB::table('characters')->where('id', $cid)->update([
+                'gold' => (int) $char['gold'] - (int) $cost['gold'],
+                'materials' => json_encode(self::qtyMap($materials), JSON_THROW_ON_ERROR),
+                'skills' => json_encode($ranks, JSON_THROW_ON_ERROR),
+                'row_version' => DB::raw('row_version + 1'),
+            ]);
+
+            return $skill['name'];
+        });
+    }
+
+    public function feedHorcrux(int $accountId, int $version, int $itemId): string
+    {
+        return DB::transaction(function () use ($accountId, $version, $itemId) {
+            $char = $this->lock($accountId);
+            $this->checkVersion($char, $version);
+            $balance = Balance::get();
+            $cid = (int) $char['id'];
+            $item = DB::table('item_instances')->where('id', $itemId)->where('character_id', $cid)->where('status', 'owned')->lockForUpdate()->first();
+            if (! $item) {
+                throw new GameException('That item is not in your inventory.');
+            }
+            if (DB::table('character_equipment')->where('item_instance_id', $itemId)->exists()) {
+                throw new GameException('Unequip it before feeding the horcrux.');
+            }
+            $tier = (int) $char['horcrux_tier'];
+            if ($tier >= Growth::maxTier($balance)) {
+                throw new GameException('The horcrux cannot take any more.');
+            }
+            $progress = (int) $char['horcrux_progress'] + Growth::feedValue([
+                'rarity' => $item->rarity,
+                'item_level' => (int) $item->item_level,
+            ], $balance);
+            DB::table('item_instances')->where('id', $itemId)->update(['status' => 'destroyed', 'character_id' => null]);
+            DB::table('characters')->where('id', $cid)->update([
+                'horcrux_tier' => Growth::tierFor($progress, $balance),
+                'horcrux_progress' => $progress,
+                'row_version' => DB::raw('row_version + 1'),
+            ]);
+
+            return $item->display_name;
+        });
+    }
+
+    /** @return list<array{code: string, qty: int, kind: string}> */
+    private function materialStacks(array $char): array
+    {
+        $owned = self::jsonMap($char['materials'] ?? null);
+
+        return DB::table('material_templates')
+            ->orderBy('sort_order')->orderBy('id')
+            ->get(['code', 'kind'])
+            ->map(fn ($row) => ['code' => $row->code, 'kind' => $row->kind, 'qty' => (int) ($owned[$row->code] ?? 0)])
+            ->all();
+    }
+
+    /** @param list<array{code: string, qty: int}> $materials */
+    private static function qtyMap(array $materials): array
+    {
+        $map = [];
+        foreach ($materials as $mat) {
+            if ((int) $mat['qty'] > 0) {
+                $map[$mat['code']] = (int) $mat['qty'];
+            }
+        }
+
+        return $map;
+    }
+
+    private static function jsonMap(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+
+        return is_array($value) ? $value : [];
     }
 
     public function cancelOrder(int $accountId): void

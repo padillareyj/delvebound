@@ -1,6 +1,8 @@
 import { Head, Link, useForm } from '@inertiajs/react';
+import { Trash2 } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { FieldError, PageHeader, Panel } from '@/components/ui';
+import { confirmDialog } from '@/lib/dialog';
 import { SLOT_LABELS } from '@/lib/format';
 
 interface LootTable {
@@ -102,9 +104,16 @@ export default function GearForm({ template, slots, types_by_slot, stat_keys, lo
         }
     };
 
-    const destroy = () => {
+    const destroy = async () => {
         if (!editing || !template.can_delete) return;
-        if (!window.confirm(`Delete ${template.name}? This cannot be undone.`)) return;
+        const ok = await confirmDialog({
+            tone: 'danger',
+            icon: <Trash2 className="size-8" />,
+            title: `Delete ${template.name}?`,
+            body: 'This cannot be undone.',
+            confirmLabel: 'Delete',
+        });
+        if (!ok) return;
         form.delete(`/admin/gear/${template.id}`);
     };
 
