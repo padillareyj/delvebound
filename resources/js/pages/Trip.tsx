@@ -356,7 +356,7 @@ export default function TripPage({ trip }: { trip: Trip }) {
                                 <button
                                     key={s}
                                     onClick={() => setSpeed(s)}
-                                    className={clsx('rounded-md px-2 py-1 text-xs font-bold', speed === s ? 'bg-lantern-400 text-ink-950' : 'text-ink-300')}
+                                    className={clsx('rounded-md px-2 py-1 text-xs font-bold', speed === s ? 'bg-lantern-400 text-on-accent' : 'text-ink-300')}
                                 >
                                     {s}×
                                 </button>

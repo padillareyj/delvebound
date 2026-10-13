@@ -46,7 +46,7 @@ export default function GameDialog() {
 
     return (
         <div
-            className="fixed inset-0 z-[60] grid animate-fade-in place-items-center bg-ink-950/75 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] grid animate-fade-in place-items-center bg-veil/70 p-4 backdrop-blur-sm"
             onMouseDown={(e) => {
                 if (e.target === e.currentTarget) closeDialog(false);
             }}

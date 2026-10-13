@@ -1375,8 +1375,13 @@ and Rune Shard. Names come from a theme
 (`App\Game\World\ThemeCatalog`): one adjective and noun for the region, then places, creatures, and the
 end dungeon in that voice. The roll is `Rng::world`, seeded by the frontier place code and the new
 `sort_order`, so the same frontier always opens the same map. A generated region code is `gen{n}_{theme}`.
-The map page already lists every `regions` row; a theme that is not one of the three parchments cycles
-the existing tints.
+The map page already lists every `regions` row. While that page is open, the whole interface uses
+that map's palette (`html[data-theme]`, tokens in `resources/css/themes.css`): `wilds` is a daylight
+wood, `salt_marches` a misty coast, and `ashen_crown` a dark ember cave. A generated region
+`gen{n}_{theme}` uses the palette for that ThemeCatalog code (`gale`, `gilt`, `mycel`, `void`, `coil`,
+`brass`, `dune`, `crimson`). Any other region cycles the three authored palettes. Everywhere else —
+town, inventory, account, the sign-in screen — stays on the sunny meadow default. The painted
+parchment follows the same palette.
 
 **place_monsters (weight, group size):**
 

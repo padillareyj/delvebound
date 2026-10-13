@@ -46,7 +46,7 @@ export function Bar({ value, max, tone = 'lantern', className, label, animate = 
 }) {
     const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
     const tones = {
-        lantern: 'from-lantern-500 to-lantern-300',
+        lantern: 'from-lantern-600 to-lantern-400',
         blood: 'from-blood-600 to-blood-400',
         moss: 'from-moss-500 to-moss-400',
         arcane: 'from-arcane-500 to-arcane-400',
@@ -92,7 +92,7 @@ export function StatTile({ label, value, hint, accent }: { label: string; value:
 export function Gold({ amount, className }: { amount: number; className?: string }) {
     return (
         <span className={clsx('inline-flex items-center gap-1 font-semibold tabular-nums text-lantern-300', className)}>
-            <span className="inline-block size-2.5 rounded-full bg-gradient-to-br from-lantern-200 to-lantern-600 shadow-[0_0_6px_rgb(245_180_83/0.7)]" />
+            <span className="inline-block size-2.5 rounded-full bg-gradient-to-br from-lantern-400 to-lantern-600 shadow-[0_0_6px_color-mix(in_oklab,var(--color-lantern-400)_70%,transparent)]" />
             {new Intl.NumberFormat('en-US').format(amount)}
         </span>
     );

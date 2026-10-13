@@ -1,0 +1,668 @@
+/* Map and meadow palettes. html[data-theme] overrides the tokens in app.css.
+   Tailwind utilities read var(--color-*), so the attribute restyles the whole page.
+   A new hand-drawn map adds a block here and a parchment class, then a code in resources/js/lib/theme.ts. */
+
+html[data-theme="meadow"] {
+    color-scheme: light;
+    --color-ink-950: #efe4cc;
+    --color-ink-900: #f7f1e2;
+    --color-ink-850: #fffdf8;
+    --color-ink-800: #f3e7cf;
+    --color-ink-700: #d2bc96;
+    --color-ink-600: #8a7044;
+    --color-ink-500: #6e5734;
+    --color-ink-400: #5a4528;
+    --color-ink-300: #3f311c;
+    --color-ink-200: #2c2214;
+    --color-ink-100: #1b160e;
+    --color-lantern-100: #633a06;
+    --color-lantern-200: #754606;
+    --color-lantern-300: #875308;
+    --color-lantern-400: #f0b42a;
+    --color-lantern-500: #e3a31a;
+    --color-lantern-600: #d49212;
+    --color-on-accent: #24180a;
+    --color-veil: #1c2816;
+    --color-hill: #5f8448;
+    --color-blood-400: #a11d1d;
+    --color-blood-500: #b42323;
+    --color-blood-600: #8e1a1a;
+    --color-moss-400: #146b30;
+    --color-moss-500: #1a7a38;
+    --color-arcane-400: #5a35c0;
+    --color-arcane-500: #4c2cac;
+    --color-frost-400: #0c6480;
+    --color-rarity-common: #3d4654;
+    --color-rarity-uncommon: #0e7030;
+    --color-rarity-rare: #1554a8;
+    --color-rarity-epic: #6b28a4;
+    --color-rarity-legendary: #8f4a00;
+    --glow-a: rgb(255 196 60 / 0.5);
+    --glow-b: rgb(120 174 72 / 0.32);
+    --title-shadow: 0 1px 0 rgb(255 252 245 / 0.85), 0 10px 24px rgb(160 110 20 / 0.14);
+    --panel-inset: rgb(255 255 255 / 0.85);
+    --panel-shadow: rgb(90 60 20 / 0.14);
+}
+
+html[data-theme="wilds"] {
+    color-scheme: light;
+    --color-ink-950: #d3e6c6;
+    --color-ink-900: #e5f2da;
+    --color-ink-850: #f7fbf3;
+    --color-ink-800: #d7ecc8;
+    --color-ink-700: #b4d09e;
+    --color-ink-600: #4f7a3c;
+    --color-ink-500: #3d6230;
+    --color-ink-400: #2f4e26;
+    --color-ink-300: #23401e;
+    --color-ink-200: #173016;
+    --color-ink-100: #0e2010;
+    --color-lantern-100: #5e3c08;
+    --color-lantern-200: #704808;
+    --color-lantern-300: #82540a;
+    --color-lantern-400: #e8ae28;
+    --color-lantern-500: #d89c16;
+    --color-lantern-600: #c88c10;
+    --color-on-accent: #1c1408;
+    --color-veil: #142414;
+    --color-hill: #2f6a32;
+    --color-blood-400: #a11d1d;
+    --color-blood-500: #b42323;
+    --color-blood-600: #8e1a1a;
+    --color-moss-400: #146b30;
+    --color-moss-500: #1a7a38;
+    --color-arcane-400: #5a35c0;
+    --color-arcane-500: #4c2cac;
+    --color-frost-400: #0c6480;
+    --color-rarity-common: #3d4654;
+    --color-rarity-uncommon: #0e7030;
+    --color-rarity-rare: #1554a8;
+    --color-rarity-epic: #6b28a4;
+    --color-rarity-legendary: #8f4a00;
+    --glow-a: rgb(255 214 90 / 0.38);
+    --glow-b: rgb(70 150 60 / 0.3);
+    --title-shadow: 0 1px 0 rgb(247 251 243 / 0.8), 0 10px 24px rgb(40 90 30 / 0.14);
+    --panel-inset: rgb(255 255 255 / 0.75);
+    --panel-shadow: rgb(30 60 20 / 0.14);
+}
+
+html[data-theme="salt"] {
+    color-scheme: light;
+    --color-ink-950: #d2e6df;
+    --color-ink-900: #e5f2ec;
+    --color-ink-850: #f7fbf9;
+    --color-ink-800: #d4ebe3;
+    --color-ink-700: #9ec4b8;
+    --color-ink-600: #4e7d70;
+    --color-ink-500: #3c645a;
+    --color-ink-400: #2e5148;
+    --color-ink-300: #214038;
+    --color-ink-200: #16302a;
+    --color-ink-100: #0e221e;
+    --color-lantern-100: #633c08;
+    --color-lantern-200: #754808;
+    --color-lantern-300: #87540a;
+    --color-lantern-400: #e8b030;
+    --color-lantern-500: #d89e18;
+    --color-lantern-600: #c88e12;
+    --color-on-accent: #24180a;
+    --color-veil: #102420;
+    --color-hill: #3e7a6c;
+    --color-blood-400: #a11d1d;
+    --color-blood-500: #b42323;
+    --color-blood-600: #8e1a1a;
+    --color-moss-400: #146b30;
+    --color-moss-500: #1a7a38;
+    --color-arcane-400: #5a35c0;
+    --color-arcane-500: #4c2cac;
+    --color-frost-400: #0c6480;
+    --color-rarity-common: #3d4654;
+    --color-rarity-uncommon: #0e7030;
+    --color-rarity-rare: #1554a8;
+    --color-rarity-epic: #6b28a4;
+    --color-rarity-legendary: #8f4a00;
+    --glow-a: rgb(255 220 150 / 0.32);
+    --glow-b: rgb(70 160 150 / 0.28);
+    --title-shadow: 0 1px 0 rgb(247 251 249 / 0.85), 0 10px 24px rgb(30 80 70 / 0.12);
+    --panel-inset: rgb(255 255 255 / 0.8);
+    --panel-shadow: rgb(20 60 55 / 0.14);
+}
+
+html[data-theme="dune"] {
+    color-scheme: light;
+    --color-ink-950: #f0e0c0;
+    --color-ink-900: #fbf3e2;
+    --color-ink-850: #fffaf1;
+    --color-ink-800: #f6e6c4;
+    --color-ink-700: #d4b888;
+    --color-ink-600: #9a7040;
+    --color-ink-500: #7c5830;
+    --color-ink-400: #664828;
+    --color-ink-300: #4c341c;
+    --color-ink-200: #362414;
+    --color-ink-100: #24180e;
+    --color-lantern-100: #7a3010;
+    --color-lantern-200: #8c3a0e;
+    --color-lantern-300: #9e4410;
+    --color-lantern-400: #f09440;
+    --color-lantern-500: #e08030;
+    --color-lantern-600: #d07020;
+    --color-on-accent: #2a1408;
+    --color-veil: #2a1c10;
+    --color-hill: #c4843c;
+    --color-blood-400: #a11d1d;
+    --color-blood-500: #b42323;
+    --color-blood-600: #8e1a1a;
+    --color-moss-400: #146b30;
+    --color-moss-500: #1a7a38;
+    --color-arcane-400: #5a35c0;
+    --color-arcane-500: #4c2cac;
+    --color-frost-400: #0c6480;
+    --color-rarity-common: #3d4654;
+    --color-rarity-uncommon: #0e7030;
+    --color-rarity-rare: #1554a8;
+    --color-rarity-epic: #6b28a4;
+    --color-rarity-legendary: #8f4a00;
+    --glow-a: rgb(255 170 50 / 0.48);
+    --glow-b: rgb(220 140 60 / 0.22);
+    --title-shadow: 0 1px 0 rgb(255 250 241 / 0.85), 0 10px 24px rgb(160 90 20 / 0.16);
+    --panel-inset: rgb(255 255 255 / 0.75);
+    --panel-shadow: rgb(120 70 20 / 0.16);
+}
+
+html[data-theme="ash"] {
+    color-scheme: dark;
+    --color-ink-950: #0c0908;
+    --color-ink-900: #16110e;
+    --color-ink-850: #1e1612;
+    --color-ink-800: #2a1f18;
+    --color-ink-700: #4a3428;
+    --color-ink-600: #6e5040;
+    --color-ink-500: #b08068;
+    --color-ink-400: #c4a090;
+    --color-ink-300: #e6c8b6;
+    --color-ink-200: #f6e4d6;
+    --color-ink-100: #fff8f2;
+    --color-lantern-100: #ffe6d0;
+    --color-lantern-200: #ffd0a8;
+    --color-lantern-300: #ffb070;
+    --color-lantern-400: #f09048;
+    --color-lantern-500: #e87830;
+    --color-lantern-600: #d46820;
+    --color-on-accent: #1a0e08;
+    --color-veil: #070504;
+    --color-hill: #0c0908;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(240 90 24 / 0.18);
+    --glow-b: rgb(120 36 16 / 0.14);
+    --title-shadow: 0 0 18px rgb(240 120 40 / 0.45);
+    --panel-inset: rgb(255 220 190 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.55);
+}
+
+html[data-theme="gale"] {
+    color-scheme: dark;
+    --color-ink-950: #090d14;
+    --color-ink-900: #101722;
+    --color-ink-850: #161e2c;
+    --color-ink-800: #1e2838;
+    --color-ink-700: #344864;
+    --color-ink-600: #4c688c;
+    --color-ink-500: #88a4c4;
+    --color-ink-400: #a4bad0;
+    --color-ink-300: #c8d4e6;
+    --color-ink-200: #e6eef8;
+    --color-ink-100: #f7f9fc;
+    --color-lantern-100: #fff4d8;
+    --color-lantern-200: #ffe6b0;
+    --color-lantern-300: #f6d080;
+    --color-lantern-400: #f0c14a;
+    --color-lantern-500: #e0aa28;
+    --color-lantern-600: #c89018;
+    --color-on-accent: #1a1408;
+    --color-veil: #06080e;
+    --color-hill: #090d14;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(180 200 230 / 0.14);
+    --glow-b: rgb(70 110 180 / 0.12);
+    --title-shadow: 0 0 18px rgb(240 200 80 / 0.4);
+    --panel-inset: rgb(220 230 255 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.55);
+}
+
+html[data-theme="gilt"] {
+    color-scheme: dark;
+    --color-ink-950: #100c08;
+    --color-ink-900: #1a140c;
+    --color-ink-850: #241c12;
+    --color-ink-800: #322616;
+    --color-ink-700: #564428;
+    --color-ink-600: #7a6238;
+    --color-ink-500: #b08858;
+    --color-ink-400: #d0b080;
+    --color-ink-300: #e8d2aa;
+    --color-ink-200: #f8ead0;
+    --color-ink-100: #fff9f0;
+    --color-lantern-100: #fff1cc;
+    --color-lantern-200: #ffe4a4;
+    --color-lantern-300: #f8d078;
+    --color-lantern-400: #f0b840;
+    --color-lantern-500: #e0a428;
+    --color-lantern-600: #c88814;
+    --color-on-accent: #1c1408;
+    --color-veil: #080604;
+    --color-hill: #100c08;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(240 190 70 / 0.16);
+    --glow-b: rgb(140 90 30 / 0.12);
+    --title-shadow: 0 0 18px rgb(240 190 70 / 0.45);
+    --panel-inset: rgb(255 230 180 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.55);
+}
+
+html[data-theme="mycel"] {
+    color-scheme: dark;
+    --color-ink-950: #0c0a10;
+    --color-ink-900: #14111a;
+    --color-ink-850: #1c1724;
+    --color-ink-800: #261e30;
+    --color-ink-700: #463858;
+    --color-ink-600: #665484;
+    --color-ink-500: #9884b4;
+    --color-ink-400: #b8a8cc;
+    --color-ink-300: #d6c8e6;
+    --color-ink-200: #eee6f6;
+    --color-ink-100: #faf7fd;
+    --color-lantern-100: #f4ffe0;
+    --color-lantern-200: #e4f6c0;
+    --color-lantern-300: #d0ea90;
+    --color-lantern-400: #b8dc5c;
+    --color-lantern-500: #a0c848;
+    --color-lantern-600: #88b034;
+    --color-on-accent: #141c0c;
+    --color-veil: #07060a;
+    --color-hill: #0c0a10;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(170 220 90 / 0.12);
+    --glow-b: rgb(120 70 160 / 0.14);
+    --title-shadow: 0 0 18px rgb(180 220 90 / 0.4);
+    --panel-inset: rgb(230 210 255 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.55);
+}
+
+html[data-theme="void"] {
+    color-scheme: dark;
+    --color-ink-950: #07070e;
+    --color-ink-900: #0c0c16;
+    --color-ink-850: #12121f;
+    --color-ink-800: #1a1a2c;
+    --color-ink-700: #343454;
+    --color-ink-600: #505078;
+    --color-ink-500: #9090b8;
+    --color-ink-400: #b0b0cc;
+    --color-ink-300: #cccce2;
+    --color-ink-200: #e8e8f6;
+    --color-ink-100: #f8f8fd;
+    --color-lantern-100: #f4f0ff;
+    --color-lantern-200: #e4dcff;
+    --color-lantern-300: #d0c4ff;
+    --color-lantern-400: #b8a8ff;
+    --color-lantern-500: #a090f4;
+    --color-lantern-600: #8c7ae4;
+    --color-on-accent: #140e24;
+    --color-veil: #04040a;
+    --color-hill: #07070e;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(140 120 220 / 0.14);
+    --glow-b: rgb(60 60 120 / 0.16);
+    --title-shadow: 0 0 18px rgb(180 160 255 / 0.4);
+    --panel-inset: rgb(220 220 255 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.6);
+}
+
+html[data-theme="coil"] {
+    color-scheme: dark;
+    --color-ink-950: #070e08;
+    --color-ink-900: #0e160f;
+    --color-ink-850: #141e16;
+    --color-ink-800: #1c2c1c;
+    --color-ink-700: #345234;
+    --color-ink-600: #4c724c;
+    --color-ink-500: #74a06c;
+    --color-ink-400: #a0c496;
+    --color-ink-300: #c6dec0;
+    --color-ink-200: #e6f2e0;
+    --color-ink-100: #f6fbf4;
+    --color-lantern-100: #fff0cc;
+    --color-lantern-200: #ffe2a4;
+    --color-lantern-300: #f4cc70;
+    --color-lantern-400: #e8b040;
+    --color-lantern-500: #d49c28;
+    --color-lantern-600: #bc8418;
+    --color-on-accent: #1a1408;
+    --color-veil: #050a06;
+    --color-hill: #070e08;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(180 200 60 / 0.12);
+    --glow-b: rgb(30 80 40 / 0.16);
+    --title-shadow: 0 0 18px rgb(232 176 64 / 0.4);
+    --panel-inset: rgb(200 230 180 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.55);
+}
+
+html[data-theme="brass"] {
+    color-scheme: dark;
+    --color-ink-950: #0e0c0a;
+    --color-ink-900: #181410;
+    --color-ink-850: #221c16;
+    --color-ink-800: #2e261c;
+    --color-ink-700: #524430;
+    --color-ink-600: #766244;
+    --color-ink-500: #b08c5c;
+    --color-ink-400: #d0b488;
+    --color-ink-300: #e8d4b4;
+    --color-ink-200: #f8ecd6;
+    --color-ink-100: #fffaf2;
+    --color-lantern-100: #fff0cc;
+    --color-lantern-200: #ffe6b0;
+    --color-lantern-300: #f6d080;
+    --color-lantern-400: #e8b84c;
+    --color-lantern-500: #d4a430;
+    --color-lantern-600: #bc8c18;
+    --color-on-accent: #1c1408;
+    --color-veil: #080705;
+    --color-hill: #0e0c0a;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(220 160 60 / 0.16);
+    --glow-b: rgb(120 80 30 / 0.12);
+    --title-shadow: 0 0 18px rgb(232 184 76 / 0.42);
+    --panel-inset: rgb(255 220 160 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.55);
+}
+
+html[data-theme="crimson"] {
+    color-scheme: dark;
+    --color-ink-950: #10080a;
+    --color-ink-900: #1a0e12;
+    --color-ink-850: #241418;
+    --color-ink-800: #321c22;
+    --color-ink-700: #56303c;
+    --color-ink-600: #7a4656;
+    --color-ink-500: #b07888;
+    --color-ink-400: #d4a0aa;
+    --color-ink-300: #e8c6cc;
+    --color-ink-200: #f8e6ea;
+    --color-ink-100: #fff7f8;
+    --color-lantern-100: #ffe8e0;
+    --color-lantern-200: #ffd0c4;
+    --color-lantern-300: #ffb09c;
+    --color-lantern-400: #f08870;
+    --color-lantern-500: #e07058;
+    --color-lantern-600: #cc5840;
+    --color-on-accent: #1c0c0a;
+    --color-veil: #080405;
+    --color-hill: #10080a;
+    --color-blood-400: #ff8d8d;
+    --color-blood-500: #d32f2f;
+    --color-blood-600: #b42323;
+    --color-moss-400: #8ee0a0;
+    --color-moss-500: #4cba68;
+    --color-arcane-400: #c4b4ff;
+    --color-arcane-500: #9a84f8;
+    --color-frost-400: #8ed4f8;
+    --color-rarity-common: #d5dbe8;
+    --color-rarity-uncommon: #6ee08a;
+    --color-rarity-rare: #7eb6ff;
+    --color-rarity-epic: #d0b0ff;
+    --color-rarity-legendary: #ffb65a;
+    --glow-a: rgb(200 50 60 / 0.16);
+    --glow-b: rgb(120 30 40 / 0.14);
+    --title-shadow: 0 0 18px rgb(240 120 100 / 0.42);
+    --panel-inset: rgb(255 200 200 / 0.05);
+    --panel-shadow: rgb(0 0 0 / 0.55);
+}
+
+/* Painted map canvases. The base class is the Wilds; each other palette adds a modifier.
+   Labels sit on ink chips, so a light palette keeps a light canvas and a dark palette stays dark. */
+.parchment {
+    background:
+        radial-gradient(ellipse at 22% 78%, rgb(70 140 55 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 78% 22%, rgb(210 220 120 / 0.5), transparent 52%),
+        radial-gradient(ellipse at 48% 46%, rgb(140 180 80 / 0.35), transparent 68%),
+        linear-gradient(165deg, #d5e8c4 0%, #9ecf86 46%, #6aaa58 100%);
+}
+.parchment-salt {
+    background:
+        radial-gradient(ellipse at 30% 75%, rgb(70 150 140 / 0.5), transparent 60%),
+        radial-gradient(ellipse at 78% 28%, rgb(190 220 210 / 0.7), transparent 55%),
+        radial-gradient(ellipse at 50% 50%, rgb(100 160 140 / 0.35), transparent 70%),
+        linear-gradient(180deg, #d7efe8, #9ecfc2);
+}
+.parchment-ash {
+    background:
+        radial-gradient(ellipse at 50% 16%, rgb(180 60 18 / 0.5), transparent 52%),
+        radial-gradient(ellipse at 18% 82%, rgb(80 24 12 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 82% 70%, rgb(50 20 14 / 0.5), transparent 60%),
+        linear-gradient(180deg, #2a1610, #100c0a);
+}
+.parchment-gale {
+    background:
+        radial-gradient(ellipse at 70% 18%, rgb(180 200 230 / 0.28), transparent 50%),
+        radial-gradient(ellipse at 20% 80%, rgb(40 60 90 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 50% 40%, rgb(90 110 140 / 0.3), transparent 68%),
+        linear-gradient(180deg, #1a2434, #0c121c);
+}
+.parchment-gilt {
+    background:
+        radial-gradient(ellipse at 50% 30%, rgb(220 170 60 / 0.35), transparent 55%),
+        radial-gradient(ellipse at 18% 80%, rgb(90 60 20 / 0.45), transparent 60%),
+        radial-gradient(ellipse at 82% 75%, rgb(60 40 16 / 0.4), transparent 58%),
+        linear-gradient(180deg, #2a2010, #120e08);
+}
+.parchment-mycel {
+    background:
+        radial-gradient(ellipse at 30% 70%, rgb(140 80 170 / 0.4), transparent 58%),
+        radial-gradient(ellipse at 72% 28%, rgb(160 200 80 / 0.22), transparent 52%),
+        radial-gradient(ellipse at 50% 50%, rgb(60 30 80 / 0.4), transparent 70%),
+        linear-gradient(180deg, #22182c, #100c16);
+}
+.parchment-void {
+    background:
+        radial-gradient(ellipse at 60% 30%, rgb(90 80 160 / 0.28), transparent 48%),
+        radial-gradient(ellipse at 20% 80%, rgb(20 20 40 / 0.6), transparent 55%),
+        radial-gradient(circle at 72% 22%, rgb(220 220 255 / 0.16), transparent 8%),
+        linear-gradient(180deg, #12121c, #07070e);
+}
+.parchment-coil {
+    background:
+        radial-gradient(ellipse at 28% 72%, rgb(40 90 40 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 75% 30%, rgb(160 180 50 / 0.18), transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgb(20 40 20 / 0.4), transparent 70%),
+        linear-gradient(180deg, #162416, #0a100c);
+}
+.parchment-brass {
+    background:
+        radial-gradient(ellipse at 50% 24%, rgb(200 140 50 / 0.35), transparent 52%),
+        radial-gradient(ellipse at 18% 80%, rgb(80 50 20 / 0.45), transparent 58%),
+        radial-gradient(ellipse at 80% 70%, rgb(50 36 18 / 0.4), transparent 60%),
+        linear-gradient(180deg, #2a2218, #100e0c);
+}
+.parchment-dune {
+    background:
+        radial-gradient(ellipse at 30% 70%, rgb(210 150 60 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 75% 25%, rgb(255 220 150 / 0.65), transparent 52%),
+        radial-gradient(ellipse at 50% 50%, rgb(230 170 80 / 0.35), transparent 68%),
+        linear-gradient(165deg, #f8e6c0 0%, #e8c078 48%, #d09a48 100%);
+}
+.parchment-crimson {
+    background:
+        radial-gradient(ellipse at 50% 20%, rgb(160 30 40 / 0.45), transparent 52%),
+        radial-gradient(ellipse at 20% 80%, rgb(80 16 24 / 0.5), transparent 58%),
+        radial-gradient(ellipse at 80% 70%, rgb(50 12 18 / 0.45), transparent 60%),
+        linear-gradient(180deg, #2a1216, #10080a);
+}
+
+/* Painted map canvases. The base class is the Wilds; each other palette adds a modifier.
+   Labels sit on ink chips, so a light palette keeps a light canvas and a dark palette stays dark. */
+.parchment {
+    background:
+        radial-gradient(ellipse at 22% 78%, rgb(70 140 55 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 78% 22%, rgb(210 220 120 / 0.5), transparent 52%),
+        radial-gradient(ellipse at 48% 46%, rgb(140 180 80 / 0.35), transparent 68%),
+        linear-gradient(165deg, #d5e8c4 0%, #9ecf86 46%, #6aaa58 100%);
+}
+.parchment-salt {
+    background:
+        radial-gradient(ellipse at 30% 75%, rgb(70 150 140 / 0.5), transparent 60%),
+        radial-gradient(ellipse at 78% 28%, rgb(190 220 210 / 0.7), transparent 55%),
+        radial-gradient(ellipse at 50% 50%, rgb(100 160 140 / 0.35), transparent 70%),
+        linear-gradient(180deg, #d7efe8, #9ecfc2);
+}
+.parchment-ash {
+    background:
+        radial-gradient(ellipse at 50% 16%, rgb(180 60 18 / 0.5), transparent 52%),
+        radial-gradient(ellipse at 18% 82%, rgb(80 24 12 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 82% 70%, rgb(50 20 14 / 0.5), transparent 60%),
+        linear-gradient(180deg, #2a1610, #100c0a);
+}
+.parchment-gale {
+    background:
+        radial-gradient(ellipse at 70% 18%, rgb(180 200 230 / 0.28), transparent 50%),
+        radial-gradient(ellipse at 20% 80%, rgb(40 60 90 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 50% 40%, rgb(90 110 140 / 0.3), transparent 68%),
+        linear-gradient(180deg, #1a2434, #0c121c);
+}
+.parchment-gilt {
+    background:
+        radial-gradient(ellipse at 50% 30%, rgb(220 170 60 / 0.35), transparent 55%),
+        radial-gradient(ellipse at 18% 80%, rgb(90 60 20 / 0.45), transparent 60%),
+        radial-gradient(ellipse at 82% 75%, rgb(60 40 16 / 0.4), transparent 58%),
+        linear-gradient(180deg, #2a2010, #120e08);
+}
+.parchment-mycel {
+    background:
+        radial-gradient(ellipse at 30% 70%, rgb(140 80 170 / 0.4), transparent 58%),
+        radial-gradient(ellipse at 72% 28%, rgb(160 200 80 / 0.22), transparent 52%),
+        radial-gradient(ellipse at 50% 50%, rgb(60 30 80 / 0.4), transparent 70%),
+        linear-gradient(180deg, #22182c, #100c16);
+}
+.parchment-void {
+    background:
+        radial-gradient(ellipse at 60% 30%, rgb(90 80 160 / 0.28), transparent 48%),
+        radial-gradient(ellipse at 20% 80%, rgb(20 20 40 / 0.6), transparent 55%),
+        radial-gradient(circle at 72% 22%, rgb(220 220 255 / 0.16), transparent 8%),
+        linear-gradient(180deg, #12121c, #07070e);
+}
+.parchment-coil {
+    background:
+        radial-gradient(ellipse at 28% 72%, rgb(40 90 40 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 75% 30%, rgb(160 180 50 / 0.18), transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgb(20 40 20 / 0.4), transparent 70%),
+        linear-gradient(180deg, #162416, #0a100c);
+}
+.parchment-brass {
+    background:
+        radial-gradient(ellipse at 50% 24%, rgb(200 140 50 / 0.35), transparent 52%),
+        radial-gradient(ellipse at 18% 80%, rgb(80 50 20 / 0.45), transparent 58%),
+        radial-gradient(ellipse at 80% 70%, rgb(50 36 18 / 0.4), transparent 60%),
+        linear-gradient(180deg, #2a2218, #100e0c);
+}
+.parchment-dune {
+    background:
+        radial-gradient(ellipse at 30% 70%, rgb(210 150 60 / 0.55), transparent 58%),
+        radial-gradient(ellipse at 75% 25%, rgb(255 220 150 / 0.65), transparent 52%),
+        radial-gradient(ellipse at 50% 50%, rgb(230 170 80 / 0.35), transparent 68%),
+        linear-gradient(165deg, #f8e6c0 0%, #e8c078 48%, #d09a48 100%);
+}
+.parchment-crimson {
+    background:
+        radial-gradient(ellipse at 50% 20%, rgb(160 30 40 / 0.45), transparent 52%),
+        radial-gradient(ellipse at 20% 80%, rgb(80 16 24 / 0.5), transparent 58%),
+        radial-gradient(ellipse at 80% 70%, rgb(50 12 18 / 0.45), transparent 60%),
+        linear-gradient(180deg, #2a1216, #10080a);
+}
+

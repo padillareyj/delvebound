@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import type { Appearance, PremiumPiece, PremiumTier } from '@/types';
 
 export const STYLE: Record<string, { text: string; border: string; glow: string; aura: string }> = {
-    lantern: { text: 'text-lantern-300', border: 'border-lantern-400/70', glow: 'shadow-[0_0_22px_-4px_rgb(245_180_83/0.7)]', aura: 'from-lantern-400/60' },
+    lantern: { text: 'text-lantern-300', border: 'border-lantern-400/70', glow: 'shadow-[0_0_22px_-4px_color-mix(in_oklab,var(--color-lantern-400)_70%,transparent)]', aura: 'from-lantern-400/60' },
     ember: { text: 'text-orange-400', border: 'border-orange-500/70', glow: 'shadow-[0_0_22px_-4px_rgb(249_115_22/0.75)]', aura: 'from-orange-500/60' },
     frost: { text: 'text-frost-400', border: 'border-frost-400/70', glow: 'shadow-[0_0_22px_-4px_rgb(108_198_240/0.75)]', aura: 'from-frost-400/55' },
     moss: { text: 'text-moss-400', border: 'border-moss-500/70', glow: 'shadow-[0_0_22px_-4px_rgb(76_184_101/0.7)]', aura: 'from-moss-500/55' },

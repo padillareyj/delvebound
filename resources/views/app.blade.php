@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full" data-theme="meadow">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#0b0d14">
+    <meta name="theme-color" content="#f7f1e2">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <title inertia>{{ config('app.name', 'Delvebound') }}</title>
     @viteReactRefresh

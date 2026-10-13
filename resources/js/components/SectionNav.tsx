@@ -18,7 +18,7 @@ export default function SectionNav({ entry }: { entry: NavEntry }) {
                         aria-current={active ? 'page' : undefined}
                         className={clsx(
                             'flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold whitespace-nowrap sm:flex-none sm:px-4',
-                            active ? 'bg-lantern-400 text-ink-950' : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100',
+                            active ? 'bg-lantern-400 text-on-accent' : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100',
                         )}
                     >
                         <Icon className="size-4" />

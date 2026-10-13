@@ -250,7 +250,7 @@ export default function ForgeBoard({ rowVersion, gold, inventory, forgeQuote }: 
             </Panel>
 
             {striking && (
-                <div className="fixed inset-0 z-[60] grid animate-fade-in place-items-center bg-ink-950/80 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[60] grid animate-fade-in place-items-center bg-veil/75 backdrop-blur-sm">
                     <div className="text-center">
                         <Hammer className="mx-auto size-24 origin-bottom-right animate-hammer text-lantern-300 drop-shadow-[0_0_24px_var(--color-lantern-500)]" />
                         <p className="mt-4 font-display text-lg text-lantern-200">The hammer falls…</p>

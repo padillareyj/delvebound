@@ -49,7 +49,7 @@ export default function Leaderboard({ sort, rows }: { sort: string; rows: Row[] 
                             key={s.key}
                             href={`/leaderboard?sort=${s.key}`}
                             preserveScroll
-                            className={clsx('rounded-md px-3 py-1.5 text-xs font-semibold', sort === s.key ? 'bg-lantern-400 text-ink-950' : 'text-ink-300 hover:text-ink-100')}
+                            className={clsx('rounded-md px-3 py-1.5 text-xs font-semibold', sort === s.key ? 'bg-lantern-400 text-on-accent' : 'text-ink-300 hover:text-ink-100')}
                         >
                             {s.label}
                         </Link>

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { PageHeader, Panel } from '@/components/ui';
 import { act } from '@/lib/act';
 import { PLACE_ICONS } from '@/lib/format';
+import { parchmentClass, themeForRegion, useTheme } from '@/lib/theme';
 import type { NextDestination, Order } from '@/types';
 
 interface Place {
@@ -71,24 +72,14 @@ const FIT_STYLE = {
     easy: { ring: 'ring-ink-400', bg: 'from-ink-700 to-ink-900', label: 'Too easy', text: 'text-ink-300' },
 };
 
-const PARCHMENT: Record<string, string> = {
-    wilds: 'parchment',
-    salt_marches: 'parchment parchment-salt',
-    ashen_crown: 'parchment parchment-ash',
-};
-
-const PARCHMENT_CYCLE = ['parchment', 'parchment parchment-salt', 'parchment parchment-ash'];
-
-function parchmentClass(code: string, index: number): string {
-    return PARCHMENT[code] ?? PARCHMENT_CYCLE[index % PARCHMENT_CYCLE.length];
-}
-
 export default function MapPage({ level, regions, places, order, next, lastPlaceId }: Props) {
     const initial = places.find((p) => p.id === order?.place_id) ?? places.find((p) => p.id === lastPlaceId) ?? places[0];
     const [regionCode, setRegionCode] = useState(initial?.region_code ?? regions[0]?.code);
     const [selectedId, setSelectedId] = useState<number | undefined>(initial?.id);
     const region = regions.find((r) => r.code === regionCode) ?? regions[0];
     const regionIndex = Math.max(0, regions.findIndex((r) => r.code === region?.code));
+    const theme = themeForRegion(region?.code, regionIndex);
+    useTheme(theme);
     const shown = places.filter((p) => p.region_code === region?.code);
     const selected = places.find((p) => p.id === selectedId);
     const anchor = shown.find((p) => p.place_type === 'rest') ?? [...shown].sort((a, b) => a.min_level - b.min_level)[0];
@@ -126,7 +117,7 @@ export default function MapPage({ level, regions, places, order, next, lastPlace
                         className={clsx(
                             'rounded-full px-4 py-1.5 text-sm font-semibold transition',
                             r.code === region?.code
-                                ? 'bg-lantern-400 text-ink-950'
+                                ? 'bg-lantern-400 text-on-accent'
                                 : 'bg-ink-800 text-ink-200 ring-1 ring-ink-600 hover:bg-ink-700',
                         )}
                     >
@@ -136,11 +127,11 @@ export default function MapPage({ level, regions, places, order, next, lastPlace
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_22rem]">
-                <div className={clsx(parchmentClass(region?.code ?? 'wilds', regionIndex), 'relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-ink-700 shadow-2xl sm:aspect-[16/10]')}>
+                <div className={clsx(parchmentClass(theme), 'relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-ink-700 shadow-2xl sm:aspect-[16/10]')}>
                     <svg className="absolute inset-0 size-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                         <defs>
                             <pattern id="grid" width="5" height="5" patternUnits="userSpaceOnUse">
-                                <path d="M5 0H0V5" fill="none" stroke="rgb(138 149 179 / 0.06)" strokeWidth="0.15" />
+                                <path d="M5 0H0V5" fill="none" stroke="var(--color-ink-500)" strokeOpacity="0.18" strokeWidth="0.15" />
                             </pattern>
                         </defs>
                         <rect width="100" height="100" fill="url(#grid)" />
@@ -156,7 +147,8 @@ export default function MapPage({ level, regions, places, order, next, lastPlace
                                             key={p.id}
                                             d={`M${from.map_x} ${from.map_y} Q${mx} ${my} ${p.map_x} ${p.map_y}`}
                                             fill="none"
-                                            stroke={p.open ? 'rgb(245 180 83 / 0.45)' : 'rgb(91 103 136 / 0.35)'}
+                                            stroke={p.open ? 'var(--color-lantern-500)' : 'var(--color-ink-500)'}
+                                            strokeOpacity={p.open ? 0.8 : 0.45}
                                             strokeWidth="0.45"
                                             strokeDasharray="1.4 1.1"
                                             vectorEffect="non-scaling-stroke"
@@ -206,7 +198,7 @@ export default function MapPage({ level, regions, places, order, next, lastPlace
                                 </span>
                                 <span
                                     className={clsx(
-                                        'absolute top-full left-1/2 mt-1.5 -translate-x-1/2 rounded-md bg-ink-950/80 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap backdrop-blur',
+                                        'absolute top-full left-1/2 mt-1.5 -translate-x-1/2 rounded-md bg-ink-950/90 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap shadow-sm ring-1 ring-ink-700/60 backdrop-blur',
                                         isSelected ? 'text-lantern-200' : 'text-ink-200',
                                     )}
                                 >
