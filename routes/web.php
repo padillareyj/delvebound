@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Route;
 
 // There is deliberately no route that starts a simulation run (DESIGN.md §14, decision 4).
 
+Route::get('/credits', [GameController::class, 'credits'])->name('credits');
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');

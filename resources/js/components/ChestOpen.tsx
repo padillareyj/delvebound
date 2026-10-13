@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 import { RarityName, slotGlyph } from '@/components/ItemCard';
 import { Gold } from '@/components/ui';
-import { RARITY_BORDER, RARITY_GLOW } from '@/lib/format';
+import { RARITY_BORDER, RARITY_GLOW, RARITY_TEXT } from '@/lib/format';
 import type { OpenedChest, SharedProps } from '@/types';
 
 const RARITY_RANK = ['common', 'uncommon', 'rare', 'epic', 'legendary'] as const;
@@ -76,7 +76,7 @@ function Reveal({ chest, shown, ready, onClose }: { chest: OpenedChest; shown: n
                             RARITY_GLOW[item.rarity],
                         )}
                     >
-                        <span className="text-ink-100">{slotGlyph(item.slot, 'size-8')}</span>
+                        <span className={clsx('text-ink-100', RARITY_TEXT[item.rarity])}>{slotGlyph(item.slot, 'size-8', item.icon)}</span>
                         <span className="min-w-0 flex-1">
                             <RarityName name={item.name} rarity={item.rarity} className="block truncate font-semibold" />
                             <span className="text-[11px] tracking-wide text-ink-400 uppercase">ilvl {item.item_level}</span>

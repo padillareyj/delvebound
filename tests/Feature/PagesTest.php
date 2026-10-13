@@ -15,6 +15,11 @@ class PagesTest extends TestCase
         $this->resetGame();
     }
 
+    public function test_credits_page_is_public(): void
+    {
+        $this->get('/credits')->assertOk()->assertInertia(fn ($page) => $page->component('Credits'));
+    }
+
     public function test_every_page_renders_its_component(): void
     {
         [$account] = $this->makePlayer('rey');

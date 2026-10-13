@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Game\Balance;
 use App\Game\Forge;
+use App\Game\ItemArt;
 use App\Game\Growth;
 use App\Game\Premium;
 use App\Game\Progression;
@@ -199,7 +200,46 @@ class GameQueries
             'implicit' => self::json($row->implicit_mods) ?: [],
             'affixes' => $affixes[(int) $row->id] ?? [],
             'description' => $row->description,
+            'icon' => self::gearIcon($row),
         ];
+    }
+
+    /** @param  object|array<string, mixed>  $row */
+    private static function gearIcon(object|array $row): string
+    {
+        $row = (array) $row;
+
+        return ItemArt::icon([
+            'icon' => $row['template_icon'] ?? null,
+            'code' => $row['code'] ?? $row['item_code'] ?? null,
+            'name' => $row['template_name'] ?? $row['item_name'] ?? null,
+            'display_name' => $row['display_name'] ?? null,
+            'slot' => $row['template_slot'] ?? $row['slot'] ?? null,
+            'item_type' => $row['item_type'] ?? null,
+            'two_handed' => $row['two_handed'] ?? false,
+        ]);
+    }
+
+    /** Fill icon stems on a stored mail payload so older letters still draw their loot. */
+    private static function withItemIcons(?array $payload): ?array
+    {
+        if ($payload === null) {
+            return null;
+        }
+        foreach (['items', 'lost_items'] as $key) {
+            if (! isset($payload[$key]) || ! is_array($payload[$key])) {
+                continue;
+            }
+            foreach ($payload[$key] as $index => $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $item['icon'] = ItemArt::icon($item);
+                $payload[$key][$index] = $item;
+            }
+        }
+
+        return $payload;
     }
 
     private function itemQuery()
@@ -207,7 +247,7 @@ class GameQueries
         return DB::table('item_instances as ii')
             ->join('item_templates as it', 'it.id', '=', 'ii.template_id')
             ->select('ii.*', 'it.code', 'it.name as template_name', 'it.slot as template_slot', 'it.item_type',
-                'it.scaling_stat', 'it.two_handed', 'it.implicit_mods', 'it.req_level', 'it.description');
+                'it.scaling_stat', 'it.two_handed', 'it.implicit_mods', 'it.req_level', 'it.description', 'it.icon as template_icon');
     }
 
     /** @return array<string, array> equipped items keyed by equipment slot */
@@ -313,6 +353,11 @@ class GameQueries
                 'req_level' => (int) $r->req_level,
                 'sell_price' => (int) $r->sell_price,
                 'description' => $r->description,
+                'icon' => ItemArt::consumable([
+                    'code' => $r->code,
+                    'name' => $r->name,
+                    'effect_type' => $r->effect_type,
+                ]),
             ])->all();
     }
 
@@ -887,8 +932,8 @@ class GameQueries
             ->where('sl.is_active', 1)
             ->orderBy('sl.sort_order')->orderBy('sl.id')
             ->get(['sl.id', 'sl.kind', 'sl.price', 'sl.min_level', 'sl.consumable_id',
-                'it.name as item_name', 'it.slot', 'it.item_type', 'it.scaling_stat', 'it.two_handed', 'it.base_power',
-                'it.base_armor', 'it.base_mres', 'it.implicit_mods', 'it.description as item_desc',
+                'it.code as item_code', 'it.name as item_name', 'it.slot', 'it.item_type', 'it.scaling_stat', 'it.two_handed', 'it.base_power',
+                'it.base_armor', 'it.base_mres', 'it.implicit_mods', 'it.description as item_desc', 'it.icon as template_icon',
                 'ct.name as cons_name', 'ct.code as cons_code', 'ct.effect_type', 'ct.effect_value', 'ct.use_trigger',
                 'ct.description as cons_desc'])
             ->map(fn ($l) => [
@@ -902,6 +947,9 @@ class GameQueries
                 'item_type' => $l->item_type,
                 'scaling_stat' => $l->scaling_stat,
                 'two_handed' => (bool) $l->two_handed,
+                'icon' => $l->kind === 'gear'
+                    ? self::gearIcon($l)
+                    : ItemArt::consumable(['code' => $l->cons_code, 'name' => $l->cons_name, 'effect_type' => $l->effect_type]),
                 'power' => (int) $l->base_power,
                 'armor' => (int) $l->base_armor,
                 'mres' => (int) $l->base_mres,
@@ -1168,7 +1216,7 @@ class GameQueries
 
         return $row + [
             'body' => $m->body_text,
-            'payload' => self::json($m->payload),
+            'payload' => self::withItemIcons(self::json($m->payload)),
             'trip_id' => $m->trip_id === null ? null : (int) $m->trip_id,
             'run_id' => $m->run_id === null ? null : (int) $m->run_id,
             'newer_id' => $newer === null ? null : (int) $newer,
@@ -1214,8 +1262,10 @@ class GameQueries
             throw new NotFoundHttpException;
         }
         $loot = DB::table('trip_loot as tl')->join('item_instances as ii', 'ii.id', '=', 'tl.item_instance_id')
+            ->join('item_templates as it', 'it.id', '=', 'ii.template_id')
             ->where('tl.trip_id', $tripId)
-            ->get(['tl.kept', 'tl.encounter_seq', 'ii.id', 'ii.display_name', 'ii.rarity', 'ii.item_level', 'ii.status', 'ii.source'])
+            ->get(['tl.kept', 'tl.encounter_seq', 'ii.id', 'ii.display_name', 'ii.rarity', 'ii.item_level', 'ii.status', 'ii.source',
+                'it.code', 'it.name as template_name', 'it.slot', 'it.item_type', 'it.two_handed', 'it.icon as template_icon'])
             ->map(fn ($l) => [
                 'id' => (int) $l->id,
                 'name' => $l->display_name,
@@ -1225,6 +1275,7 @@ class GameQueries
                 'status' => $l->status,
                 'source' => $l->source,
                 'encounter_seq' => $l->encounter_seq === null ? null : (int) $l->encounter_seq,
+                'icon' => self::gearIcon($l),
             ])->all();
         $encounters = DB::table('trip_encounters')->where('trip_id', $tripId)->orderBy('seq')->get()
             ->map(function ($e) {

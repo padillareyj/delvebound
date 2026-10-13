@@ -30,6 +30,11 @@ class GameController extends Controller
 
     // --------------------------------------------------------------- pages
 
+    public function credits(): Response
+    {
+        return Inertia::render('Credits');
+    }
+
     public function dashboard(Request $request): Response
     {
         return Inertia::render('Dashboard', $this->queries->dashboard($this->accountId($request)));

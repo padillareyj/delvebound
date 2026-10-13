@@ -198,7 +198,15 @@ final class MailReport
                 $bossCode = $enc['monsters'][0]['code'] ?? $enc['monsters'][0]['name'];
             }
         }
-        $brief = fn ($item) => ['rarity' => $item['rarity'], 'name' => $item['display_name']];
+        $brief = fn ($item) => [
+            'rarity' => $item['rarity'],
+            'name' => $item['display_name'],
+            'slot' => $item['slot'] ?? $item['template_slot'] ?? null,
+            'item_type' => $item['item_type'] ?? null,
+            'two_handed' => (bool) ($item['two_handed'] ?? false),
+            'code' => $item['code'] ?? null,
+            'icon' => ItemArt::icon($item),
+        ];
 
         return [
             'v' => 1,

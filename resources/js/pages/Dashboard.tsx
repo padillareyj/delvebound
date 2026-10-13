@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { ArrowRight, Bot, Compass, Flame, Mail, Repeat, Skull, Sparkles, Swords, Tent } from 'lucide-react';
 import { ItemGlyph } from '@/components/ItemGlyph';
 import { Bar, Empty, Gold, OutcomeChip, Panel, StatTile } from '@/components/ui';
-import { DERIVED_LABELS, PLACE_ICONS, SLOT_LABELS, derivedValue, formatDateTime, timeAgo, useTimezone } from '@/lib/format';
+import { DERIVED_LABELS, PLACE_ICONS, RARITY_BORDER, RARITY_TEXT, SLOT_LABELS, derivedValue, formatDateTime, timeAgo, useTimezone } from '@/lib/format';
 import type { Consumable, Derived, Item, MailRow, NextDestination, Order, SharedProps, TripRow } from '@/types';
 
 interface Props {
@@ -155,10 +155,10 @@ export default function Dashboard(props: Props) {
                                         title={item ? `${SLOT_LABELS[slot]}: ${item.name}` : `${SLOT_LABELS[slot]}: empty`}
                                         className={clsx(
                                             'grid aspect-square place-items-center rounded-lg border text-lg',
-                                            item ? 'border-ink-600 bg-ink-800' : 'border-dashed border-ink-700 bg-ink-950/40 opacity-40',
+                                            item ? clsx('bg-ink-800', RARITY_BORDER[item.rarity], RARITY_TEXT[item.rarity]) : 'border-dashed border-ink-700 bg-ink-950/40 text-ink-500 opacity-40',
                                         )}
                                     >
-                                        <ItemGlyph slot={item?.template_slot ?? slot} itemType={item?.item_type} twoHanded={item?.two_handed} className="size-5" />
+                                        <ItemGlyph icon={item?.icon} slot={item?.template_slot ?? slot} className="size-6" />
                                     </div>
                                 );
                             })}
@@ -177,7 +177,10 @@ export default function Dashboard(props: Props) {
                             <ul className="space-y-1.5">
                                 {props.belt.map((c) => (
                                     <li key={c.id} className="flex items-center justify-between text-sm">
-                                        <span className="text-ink-200">🧪 {c.name}</span>
+                                        <span className="flex items-center gap-2 text-ink-200">
+                                            <ItemGlyph icon={c.icon} className="size-4 text-lantern-300" />
+                                            {c.name}
+                                        </span>
                                         <span className="font-semibold text-ink-100 tabular-nums">×{c.belt_qty}</span>
                                     </li>
                                 ))}

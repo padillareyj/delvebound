@@ -1,10 +1,13 @@
 import { Head, Link } from '@inertiajs/react';
+import clsx from 'clsx';
 import { ArrowLeft, ChevronLeft, ChevronRight, Swords, Trash2 } from 'lucide-react';
+import { ItemGlyph } from '@/components/ItemGlyph';
+import { RarityName } from '@/components/ItemCard';
 import { OutcomeChip, Panel } from '@/components/ui';
 import { act } from '@/lib/act';
 import { confirmDialog } from '@/lib/dialog';
-import { formatDateTime, useTimezone } from '@/lib/format';
-import type { MailRow } from '@/types';
+import { RARITY_BORDER, RARITY_TEXT, formatDateTime, useTimezone } from '@/lib/format';
+import type { MailRow, Rarity } from '@/types';
 
 interface Letter extends MailRow {
     body: string;
@@ -14,8 +17,52 @@ interface Letter extends MailRow {
     older_id: number | null;
 }
 
+const RARITIES = new Set<Rarity>(['common', 'uncommon', 'rare', 'epic', 'legendary']);
+
+interface LootBrief {
+    name: string;
+    rarity: Rarity;
+    slot: string | null;
+    icon: string | null;
+}
+
+function lootBriefs(payload: Record<string, unknown> | null, key: string): LootBrief[] {
+    const raw = payload?.[key];
+    if (!Array.isArray(raw)) return [];
+    return raw.flatMap((row) => {
+        if (!row || typeof row !== 'object') return [];
+        const item = row as Record<string, unknown>;
+        const rarity = typeof item.rarity === 'string' && RARITIES.has(item.rarity as Rarity) ? (item.rarity as Rarity) : 'common';
+        return [{
+            name: typeof item.name === 'string' && item.name !== '' ? item.name : 'Item',
+            rarity,
+            slot: typeof item.slot === 'string' ? item.slot : null,
+            icon: typeof item.icon === 'string' ? item.icon : null,
+        }];
+    });
+}
+
+function LootStrip({ title, items, faded }: { title: string; items: LootBrief[]; faded?: boolean }) {
+    if (items.length === 0) return null;
+    return (
+        <div className={clsx(faded && 'opacity-70')}>
+            <div className="label">{title}</div>
+            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                {items.map((item, index) => (
+                    <li key={`${item.name}-${index}`} className={clsx('flex items-center gap-2 rounded-lg border bg-ink-950/70 px-2 py-1.5', RARITY_BORDER[item.rarity], RARITY_TEXT[item.rarity])}>
+                        <ItemGlyph icon={item.icon} slot={item.slot} className="size-7 shrink-0" />
+                        <RarityName name={item.name} rarity={item.rarity} className="truncate text-sm" />
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 export default function MailShow({ letter }: { letter: Letter }) {
     const tz = useTimezone();
+    const found = lootBriefs(letter.payload, 'items');
+    const lost = lootBriefs(letter.payload, 'lost_items');
     return (
         <>
             <Head title={letter.subject} />
@@ -37,6 +84,12 @@ export default function MailShow({ letter }: { letter: Letter }) {
                         <h1 className="mt-2 text-2xl font-bold text-lantern-200">{letter.subject}</h1>
                         <p className="mt-1 text-xs text-ink-400">{formatDateTime(letter.created_at, tz)}</p>
                     </div>
+                    {(found.length > 0 || lost.length > 0) && (
+                        <div className="space-y-4 border-b border-ink-700/70 px-6 py-5">
+                            <LootStrip title="Carried home" items={found} />
+                            <LootStrip title="Left behind" items={lost} faded />
+                        </div>
+                    )}
                     <div className="scroll-thin overflow-x-auto px-6 py-5">
                         <pre className="font-mono text-[13px] leading-relaxed whitespace-pre text-ink-200">{letter.body}</pre>
                     </div>

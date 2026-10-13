@@ -327,7 +327,7 @@ function EquipSlot({ name, item, active, onClick }: { name: string; item?: Item;
                 active && 'ring-2 ring-lantern-400',
             )}
         >
-            <ItemGlyph slot={item?.template_slot ?? name} itemType={item?.item_type} twoHanded={item?.two_handed} className={clsx('size-7', !item && 'opacity-40')} />
+            <ItemGlyph icon={item?.icon} slot={item?.template_slot ?? name} className={clsx('size-8', !item && 'opacity-40')} />
             {item?.two_handed && <span className="absolute right-0.5 bottom-0.5 rounded bg-ink-950/90 px-0.5 text-[8px] font-bold leading-none text-lantern-200">2H</span>}
             {item && (
                 <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 hidden w-56 -translate-x-1/2 rounded-lg border border-ink-600 bg-ink-950 p-2 text-left shadow-xl group-hover:block">

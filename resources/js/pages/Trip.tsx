@@ -2,9 +2,10 @@ import { Head, Link } from '@inertiajs/react';
 import clsx from 'clsx';
 import { ChevronLeft, ChevronsRight, Crown, FastForward, Mail, Pause, Play, RotateCcw, SkipForward, Skull, StepForward } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ItemGlyph } from '@/components/ItemGlyph';
 import { RarityName } from '@/components/ItemCard';
 import { Bar, Gold, OutcomeChip, Panel } from '@/components/ui';
-import { OUTCOME_META, PLACE_ICONS, formatDateTime, useTimezone } from '@/lib/format';
+import { OUTCOME_META, PLACE_ICONS, RARITY_TEXT, formatDateTime, useTimezone } from '@/lib/format';
 import type { Encounter, LogEvent, Trip, Unit } from '@/types';
 
 const HERO = '__hero__';
@@ -327,8 +328,9 @@ export default function TripPage({ trip }: { trip: Trip }) {
                                         </div>
                                     )}
                                     {trip.loot.filter((l) => l.encounter_seq === current.seq).map((l) => (
-                                        <div key={l.id} className="mt-1 text-sm">
-                                            ✦ <RarityName name={l.name} rarity={l.rarity} />
+                                        <div key={l.id} className={clsx('mt-1 flex items-center justify-center gap-2 text-sm', RARITY_TEXT[l.rarity])}>
+                                            <ItemGlyph icon={l.icon} className="size-5" />
+                                            <RarityName name={l.name} rarity={l.rarity} />
                                         </div>
                                     ))}
                                 </div>
@@ -432,7 +434,10 @@ export default function TripPage({ trip }: { trip: Trip }) {
                                     <ul className="space-y-1.5">
                                         {revealedLoot.map((l, i) => (
                                             <li key={l.id} className="flex animate-rise items-center justify-between gap-2 text-sm" style={{ animationDelay: `${i * 120}ms` }}>
-                                                <RarityName name={l.name} rarity={l.rarity} className="truncate" />
+                                                <span className={clsx('flex min-w-0 items-center gap-2', RARITY_TEXT[l.rarity])}>
+                                                    <ItemGlyph icon={l.icon} className="size-5 shrink-0" />
+                                                    <RarityName name={l.name} rarity={l.rarity} className="truncate" />
+                                                </span>
                                                 <span className="shrink-0 text-[11px] text-ink-500">
                                                     {l.encounter_seq === null ? 'chest' : `fight ${l.encounter_seq}`}
                                                     {!l.kept && ' · left behind'}
@@ -441,7 +446,10 @@ export default function TripPage({ trip }: { trip: Trip }) {
                                         ))}
                                         {finished && trip.loot.filter((l) => l.encounter_seq === null).map((l) => (
                                             <li key={l.id} className="flex items-center justify-between gap-2 text-sm">
-                                                <RarityName name={l.name} rarity={l.rarity} className="truncate" />
+                                                <span className={clsx('flex min-w-0 items-center gap-2', RARITY_TEXT[l.rarity])}>
+                                                    <ItemGlyph icon={l.icon} className="size-5 shrink-0" />
+                                                    <RarityName name={l.name} rarity={l.rarity} className="truncate" />
+                                                </span>
                                                 <span className="shrink-0 text-[11px] text-ink-500">chest{!l.kept && ' · left behind'}</span>
                                             </li>
                                         ))}
