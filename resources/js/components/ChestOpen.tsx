@@ -37,7 +37,7 @@ export default function ChestOpen() {
     if (!chest || dismissed) return null;
 
     return (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-ink-950/80 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-veil/75 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md text-center">
                 {phase === 'shake' ? (
                     <ChestGlyph shaking place={chest.place} />

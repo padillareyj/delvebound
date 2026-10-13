@@ -146,7 +146,7 @@ function MobileNav({ items, url }: { items: NavEntry[]; url: string }) {
     return (
         <>
             {openItem && (
-                <button type="button" aria-label="Close menu" className="fixed inset-0 z-30 bg-ink-950/50 xl:hidden" onClick={() => setOpen(null)} />
+                <button type="button" aria-label="Close menu" className="fixed inset-0 z-30 bg-veil/45 xl:hidden" onClick={() => setOpen(null)} />
             )}
             <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-700/70 bg-ink-900/95 backdrop-blur-lg xl:hidden" aria-label="Main">
                 {openItem?.children && (
@@ -260,7 +260,7 @@ function HeroBar() {
                 <div className="relative grid size-10 shrink-0 place-items-center rounded-full border border-lantern-400/50 bg-ink-800 font-display text-lg font-extrabold text-lantern-300">
                     {hero.level}
                     {hero.unspent > 0 && (
-                        <span className="absolute -top-1 -right-1 grid size-5 place-items-center rounded-full bg-lantern-400 text-[10px] font-bold text-ink-950">
+                        <span className="absolute -top-1 -right-1 grid size-5 place-items-center rounded-full bg-lantern-400 text-[10px] font-bold text-on-accent">
                             <span className="absolute inset-0 animate-pulse-ring rounded-full bg-lantern-400" />
                             <span className="relative">{hero.unspent}</span>
                         </span>

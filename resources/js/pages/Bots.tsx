@@ -99,7 +99,7 @@ export default function Bots({ bots }: { bots: BotRow[] }) {
                                         <div key={k} className="flex items-center gap-2 text-xs">
                                             <span className="w-8 font-bold text-ink-400">{STAT_NAMES[k].short}</span>
                                             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-950">
-                                                <div className="h-full rounded-full bg-gradient-to-r from-lantern-600 to-lantern-300" style={{ width: `${(b.stats[k] / top) * 100}%` }} />
+                                                <div className="h-full rounded-full bg-gradient-to-r from-lantern-600 to-lantern-400" style={{ width: `${(b.stats[k] / top) * 100}%` }} />
                                             </div>
                                             <span className="w-6 text-right tabular-nums">{b.stats[k]}</span>
                                         </div>

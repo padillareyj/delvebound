@@ -91,7 +91,7 @@ export default function Market(props: Props) {
                         <button
                             key={t}
                             onClick={() => setTab(t)}
-                            className={clsx('rounded-md px-4 py-1.5 text-sm font-semibold capitalize', tab === t ? 'bg-lantern-400 text-ink-950' : 'text-ink-300 hover:text-ink-100')}
+                            className={clsx('rounded-md px-4 py-1.5 text-sm font-semibold capitalize', tab === t ? 'bg-lantern-400 text-on-accent' : 'text-ink-300 hover:text-ink-100')}
                         >
                             {t}
                         </button>
@@ -136,7 +136,7 @@ export default function Market(props: Props) {
                                                 disabled={l.locked || room < q || props.gold < total}
                                                 onClick={() => act('/market/buy', { listing_id: l.id, quantity: q, row_version: props.rowVersion })}
                                             >
-                                                <ShoppingBag className="size-3.5" /> Buy {q > 1 && <Gold amount={total} className="text-ink-950" />}
+                                                <ShoppingBag className="size-3.5" /> Buy {q > 1 && <Gold amount={total} className="text-on-accent!" />}
                                             </button>
                                         </div>
                                     </div>

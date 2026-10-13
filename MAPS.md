@@ -64,10 +64,12 @@ php artisan migrate --database=admin
 
 The tab list is every `regions` row, ordered by `sort_order`. `GameQueries::mapPage` already sends them. You do not add a route.
 
-Optional, for a tint that is not the Wilds parchment:
+The page theme follows the region. While the map is open, `html[data-theme]` swaps the shared color tokens, and leaving the map restores the sunny meadow default.
 
-- Add a class in `resources/css/app.css` (see `.parchment-salt` and `.parchment-ash`).
-- Point the region code at it in `PARCHMENT` in `resources/js/pages/Map.tsx`.
+- Point the region code at a palette in `AUTHORED` in `resources/js/lib/theme.ts`.
+- Add a `[data-theme]` block and a `.parchment-*` class in `resources/css/themes.css` (see `salt` and `ash`).
+
+A region with no entry cycles the Wilds, Salt Marches, and Ashen Crown palettes. A generated region `gen{n}_{theme}` already picks the palette for that theme code.
 
 Icons come from `place_type`, not from the region. They live in `PLACE_ICONS` in `resources/js/lib/format.ts`. The camp page guesses an icon from the place code in `placeTypeGuess` in `resources/js/pages/Dashboard.tsx`. Add the new codes there.
 
