@@ -7,7 +7,7 @@ export default function SectionNav({ entry }: { entry: NavEntry }) {
     if (!entry.children?.length) return null;
 
     return (
-        <nav aria-label={`${entry.label} sections`} className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-ink-700/80 bg-ink-900/50 p-1">
+        <nav aria-label={`${entry.label} sections`} className="mb-5 flex w-full max-w-full gap-1 overflow-x-auto rounded-xl border border-ink-700/80 bg-ink-900/50 p-1 sm:w-fit">
             {entry.children.map((child) => {
                 const active = isNavActive(url, child);
                 const Icon = child.icon;

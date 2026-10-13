@@ -92,17 +92,43 @@ class GameQueries
         return ['title' => $title, 'gear' => $gear];
     }
 
+    /**
+     * Every wearable premium piece for the Hero collection tab: owned ones (even if no longer sold) and the
+     * ones still in the store, with the owned / active / equipped flags.
+     */
+    private function collection(array $premium): array
+    {
+        $pieces = [];
+        foreach ($this->premiumCatalog() as $item) {
+            $owned = in_array($item['code'], $premium['owned'], true);
+            if ($item['category'] === Premium::BUNDLE || (! $owned && ! $item['is_active'])) {
+                continue;
+            }
+            $pieces[] = self::premiumView($item) + [
+                'owned' => $owned,
+                'active' => in_array($item['code'], $premium['active'], true),
+                'worn' => ($premium['equipped'][$item['category']] ?? null) === $item['code'],
+            ];
+        }
+
+        return [
+            'pieces' => $pieces,
+            'bonus' => (object) array_filter(Premium::bonuses($premium['boosts'])),
+            'power' => Premium::power($premium['boosts']),
+        ];
+    }
+
     private function bonusFor(array $growth, array $premium, array $balance): array
     {
         return Stats::mergeBonus(
             Growth::bonuses($growth['ranks'], $growth['horcrux']['tier'], $balance),
-            Premium::bonuses($premium['gear']),
+            Premium::bonuses($premium['boosts']),
         );
     }
 
     private function powerFor(int $level, array $growth, array $premium, array $balance): int
     {
-        return Growth::powerLevel($level, $growth['ranks'], $growth['horcrux']['tier'], $balance, Premium::power($premium['gear']));
+        return Growth::powerLevel($level, $growth['ranks'], $growth['horcrux']['tier'], $balance, Premium::power($premium['boosts']));
     }
 
     public function character(int $accountId): array
@@ -548,16 +574,17 @@ class GameQueries
             'powerParts' => [
                 'level' => (int) $balance['growth']['power_per_level'] * $level,
                 'growth' => Growth::powerLevel(0, $growth['ranks'], $growth['horcrux']['tier'], $balance),
-                'premium' => Premium::power($premium['gear']),
+                'premium' => Premium::power($premium['boosts']),
             ],
             'plainDerived' => $plain,
             'bonusSources' => [
                 ['source' => 'Skills', 'bonus' => (object) array_filter(Growth::bonuses($growth['ranks'], 0, $balance))],
                 ['source' => 'Horcrux', 'bonus' => (object) array_filter(Growth::bonuses([], $growth['horcrux']['tier'], $balance))],
-                ['source' => 'Premium', 'bonus' => (object) array_filter(Premium::bonuses($premium['gear']))],
+                ['source' => 'Premium', 'bonus' => (object) array_filter(Premium::bonuses($premium['boosts']))],
             ],
             'appearance' => $this->appearance($premium),
             'cash' => $premium['cash'],
+            'collection' => $this->collection($premium),
             'skills' => $growth['skills'],
             'horcrux' => $growth['horcrux'],
             'materials' => $growth['materials'],
@@ -939,9 +966,10 @@ class GameQueries
                 continue;
             }
             $owned = in_array($item['code'], $premium['owned'], true);
+            $active = in_array($item['code'], $premium['active'], true);
             $worn = ($premium['equipped'][$item['category']] ?? null) === $item['code'];
             $delta = [];
-            if ($item['category'] !== Premium::BUNDLE && ! $worn) {
+            if ($item['category'] !== Premium::BUNDLE && ! $active) {
                 $trial = $premium;
                 Premium::wear($trial, $item['code'], $catalog);
                 $after = Stats::derived($stats, $level, $gear, $balance, 0, [], $this->bonusFor($growth, $trial, $balance));
@@ -955,6 +983,7 @@ class GameQueries
             [$canBuy, $why] = Premium::canBuy($item, $premium);
             $items[] = self::premiumView($item) + [
                 'owned' => $owned,
+                'active' => $active,
                 'worn' => $worn,
                 'can_buy' => $canBuy,
                 'buy_note' => $owned && $item['category'] !== Premium::BUNDLE ? null : $why,
@@ -969,11 +998,11 @@ class GameQueries
             'startingCash' => Premium::money((int) $balance['premium']['starting_cash_cents']),
             'gold' => (int) $char['gold'],
             'power' => $this->powerFor($level, $growth, $premium, $balance),
-            'premiumPower' => Premium::power($premium['gear']),
+            'premiumPower' => Premium::power($premium['boosts']),
             'categories' => [...$balance['premium']['categories'], Premium::BUNDLE],
             'items' => $items,
             'appearance' => $this->appearance($premium),
-            'bonus' => (object) array_filter(Premium::bonuses($premium['gear'])),
+            'bonus' => (object) array_filter(Premium::bonuses($premium['boosts'])),
             'name' => $char['name'],
             'level' => $level,
             'ledger' => DB::table('shop_transactions as st')
@@ -1316,7 +1345,7 @@ class GameQueries
                 'glyphs' => array_values(array_map(fn ($g) => $g['glyph'], array_filter($look['gear'], fn ($g) => $g['category'] !== 'title'))),
                 'is_bot' => (bool) $r->is_bot,
                 'level' => (int) $r->level,
-                'power' => Growth::powerLevel((int) $r->level, $ranks, (int) $r->horcrux_tier, $balance, Premium::power($premium['gear'])),
+                'power' => Growth::powerLevel((int) $r->level, $ranks, (int) $r->horcrux_tier, $balance, Premium::power($premium['boosts'])),
                 'total_xp' => (int) $r->total_xp,
                 'gold' => (int) $r->gold,
                 'kills' => (int) $r->kills,

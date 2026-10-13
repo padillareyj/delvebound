@@ -1,6 +1,6 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import clsx from 'clsx';
-import { Check, Gem, ShoppingCart, Sparkles, Wallet, X } from 'lucide-react';
+import { Crown, ShoppingCart, Sparkles, Wallet, X } from 'lucide-react';
 import { useState } from 'react';
 import { CATEGORY_LABELS, Portrait, TIER, TitleBadge, styleOf } from '@/components/Premium';
 import SectionNav from '@/components/SectionNav';
@@ -13,6 +13,7 @@ import type { Appearance, PremiumCategory, PremiumPiece } from '@/types';
 
 interface StoreItem extends PremiumPiece {
     owned: boolean;
+    active: boolean;
     worn: boolean;
     can_buy: boolean;
     buy_note: string | null;
@@ -83,7 +84,7 @@ export default function Premium(props: Props) {
             <SectionNav entry={MARKET_NAV} />
             <PageHeader
                 title="Premium Store"
-                subtitle={<>Titles, wings, auras, pets, and frames. Every piece adds bonus stats. Play money only: every adventurer starts with {props.startingCash}.</>}
+                subtitle={<>Titles, wings, auras, pets, and frames. Every active piece adds bonus stats; wear one per slot. Play money only: every adventurer starts with {props.startingCash}.</>}
             >
                 <span className="chip border-moss-500/50 bg-moss-500/10 px-3 py-1.5 text-base text-moss-400">
                     <Wallet className="size-4" /> {props.cashLabel}
@@ -133,9 +134,12 @@ export default function Premium(props: Props) {
                         </ul>
                     </Panel>
 
-                    <Panel title={<><Sparkles className="mr-1 inline size-4" /> Premium bonus</>}>
+                    <Panel
+                        title={<><Sparkles className="mr-1 inline size-4" /> Premium bonus</>}
+                        action={<Link href="/character?tab=collection" className="text-xs text-lantern-300 hover:underline">Collection →</Link>}
+                    >
                         {bonus.length === 0 ? (
-                            <p className="text-sm text-ink-400">Wear a piece to add its bonus to every trip and arena bout.</p>
+                            <p className="text-sm text-ink-400">Activate a piece in your collection to add its bonus to every trip and arena bout.</p>
                         ) : (
                             <ul className="grid grid-cols-1 gap-1 text-sm">
                                 {bonus.map(([key, value]) => (
@@ -172,10 +176,7 @@ export default function Premium(props: Props) {
                     ) : (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                             {shown.map((item) => (
-                                <StoreCard key={item.code} item={item} busy={busy} onBuy={() => buy(item)}
-                                    onWear={() => send('/premium/wear', { code: item.code }, `wear:${item.code}`)}
-                                    onTakeOff={() => send('/premium/take-off', { category: item.category }, `off:${item.category}`)}
-                                />
+                                <StoreCard key={item.code} item={item} busy={busy} onBuy={() => buy(item)} />
                             ))}
                         </div>
                     )}
@@ -205,12 +206,10 @@ export default function Premium(props: Props) {
     );
 }
 
-function StoreCard({ item, busy, onBuy, onWear, onTakeOff }: {
+function StoreCard({ item, busy, onBuy }: {
     item: StoreItem;
     busy: string | null;
     onBuy: () => void;
-    onWear: () => void;
-    onTakeOff: () => void;
 }) {
     const s = styleOf(item);
     const tier = TIER[item.tier];
@@ -242,7 +241,7 @@ function StoreCard({ item, busy, onBuy, onWear, onTakeOff }: {
             </ul>
             {deltas.length > 0 && (
                 <div className="mt-2 rounded-lg border border-ink-700/70 bg-ink-950/40 px-2.5 py-1.5 text-[11px] text-ink-400">
-                    <span className="font-semibold text-ink-300">{item.owned ? 'If worn:' : 'Wearing it:'}</span>{' '}
+                    <span className="font-semibold text-ink-300">{item.owned ? 'If activated:' : 'Buying it:'}</span>{' '}
                     {deltas.map(([key, value]) => (
                         <span key={key} className="mr-2 whitespace-nowrap">
                             <span className={value > 0 ? 'text-moss-400' : 'text-blood-400'}>{derivedDelta(key, value)}</span> {DERIVED_LABELS[key] ?? key}
@@ -252,14 +251,10 @@ function StoreCard({ item, busy, onBuy, onWear, onTakeOff }: {
             )}
             <div className="mt-auto flex items-center justify-between gap-2 pt-4">
                 <span className="font-display text-lg font-bold text-moss-400 tabular-nums">{item.owned && !bundle ? 'Owned' : item.price}</span>
-                {item.worn ? (
-                    <button className="btn-ghost" disabled={busy !== null} onClick={onTakeOff}>
-                        <Check className="size-4 text-moss-400" /> Worn
-                    </button>
-                ) : item.owned && !bundle ? (
-                    <button className="btn-primary" disabled={busy !== null} onClick={onWear}>
-                        <Gem className="size-4" /> Wear
-                    </button>
+                {item.owned && !bundle ? (
+                    <Link href="/character?tab=collection" className="btn-ghost">
+                        <Crown className="size-4" /> {item.worn ? 'Equipped' : item.active ? 'Active' : 'Inactive'}
+                    </Link>
                 ) : (
                     <button className="btn-primary" disabled={!item.can_buy || busy !== null} onClick={onBuy} title={item.buy_note ?? undefined}>
                         <ShoppingCart className="size-4" /> Buy

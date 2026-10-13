@@ -195,14 +195,51 @@ class PremiumTest extends GameTestCase
         $this->assertSame($bought, Premium::botShop($twin, $catalog, self::$balance));
     }
 
-    public function test_bot_wears_its_best_owned_piece(): void
+    public function test_bot_activates_everything_and_wears_its_priciest_piece(): void
     {
         $catalog = self::catalog();
         $state = self::botState(0);
-        $state['premium'] = Premium::state(0, json_encode(['owned' => ['title_a', 'title_b'], 'equipped' => ['title' => 'title_a']]), $catalog, self::$balance);
+        $state['premium'] = Premium::state(0, json_encode(['owned' => ['title_a', 'title_b'], 'active' => [], 'equipped' => []]), $catalog, self::$balance);
         Premium::botShop($state, $catalog, self::$balance);
 
+        $this->assertSame(['title_a', 'title_b'], $state['premium']['active']);
         $this->assertSame(['title' => 'title_b'], $state['premium']['equipped']);
+    }
+
+    public function test_every_active_piece_adds_stats_but_one_is_worn_per_category(): void
+    {
+        $catalog = self::catalog();
+        $state = Premium::state(0, json_encode(['owned' => ['title_a', 'title_b'], 'active' => ['title_a', 'title_b'], 'equipped' => ['title' => 'title_a']]), $catalog, self::$balance);
+
+        $this->assertSame(['title' => 'title_a'], $state['equipped']);
+        $this->assertCount(1, $state['gear']);
+        $this->assertEqualsWithDelta(40.0, Premium::bonuses($state['boosts'])['attack_pct'], 1e-9);
+        $this->assertSame(14, Premium::power($state['boosts']));
+
+        Premium::setActive($state, 'title_b', false, $catalog);
+        $this->assertSame(['title_a'], $state['active']);
+        $this->assertEqualsWithDelta(10.0, Premium::bonuses($state['boosts'])['attack_pct'], 1e-9);
+
+        Premium::setActive($state, 'title_a', false, $catalog);
+        $this->assertSame([], $state['equipped'], 'deactivating the worn piece takes it off');
+        $this->assertSame([], Premium::bonuses($state['boosts']));
+
+        Premium::wear($state, 'title_b', $catalog);
+        $this->assertSame(['title_b'], $state['active'], 'equipping activates');
+        $this->assertSame(1, Premium::activateAll($state, $catalog));
+        $this->assertSame(['title_a', 'title_b'], $state['active']);
+        $this->assertSame(['title_a', 'title_b'], json_decode(Premium::encode($state), true)['active']);
+    }
+
+    public function test_saves_before_activation_have_every_owned_piece_active(): void
+    {
+        $catalog = self::catalog();
+        $state = Premium::state(0, json_encode(['owned' => ['title_a', 'wings_a'], 'equipped' => ['title' => 'title_a']]), $catalog, self::$balance);
+        $this->assertSame(['title_a', 'wings_a'], $state['active']);
+
+        $state = Premium::state(0, json_encode(['owned' => ['title_a'], 'active' => ['title_a', 'title_b'], 'equipped' => ['wings' => 'wings_a']]), $catalog, self::$balance);
+        $this->assertSame(['title_a'], $state['active'], 'only owned codes can be active');
+        $this->assertSame([], $state['equipped']);
     }
 
     public function test_bonus_keys_cover_every_seeded_premium_key(): void

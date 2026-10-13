@@ -89,6 +89,43 @@ class PremiumService
         });
     }
 
+    public function setActive(int $accountId, int $version, string $code, bool $on): string
+    {
+        return DB::transaction(function () use ($accountId, $version, $code, $on) {
+            $char = $this->characters->lock($accountId);
+            $this->characters->checkVersion($char, $version);
+            $item = $this->item($code);
+            $state = $this->queries->premiumState($char);
+            if (! in_array($code, $state['owned'], true)) {
+                throw new GameException("You do not own {$item['name']}.");
+            }
+            if (in_array($code, $state['active'], true) === $on) {
+                throw new GameException($item['name'].($on ? ' is already active.' : ' is not active.'));
+            }
+            Premium::setActive($state, $code, $on, $this->queries->premiumCatalog());
+            $this->save((int) $char['id'], $state);
+
+            return $item['name'];
+        });
+    }
+
+    /** @return int pieces newly activated */
+    public function activateAll(int $accountId, int $version): int
+    {
+        return DB::transaction(function () use ($accountId, $version) {
+            $char = $this->characters->lock($accountId);
+            $this->characters->checkVersion($char, $version);
+            $state = $this->queries->premiumState($char);
+            $added = Premium::activateAll($state, $this->queries->premiumCatalog());
+            if ($added === 0) {
+                throw new GameException('Every piece you own is already active.');
+            }
+            $this->save((int) $char['id'], $state);
+
+            return $added;
+        });
+    }
+
     public function takeOff(int $accountId, int $version, string $category): void
     {
         if (! in_array($category, Balance::get()['premium']['categories'], true)) {

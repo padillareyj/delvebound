@@ -39,6 +39,25 @@ class PremiumController extends Controller
         return back()->with('success', "Now wearing {$name}.");
     }
 
+    public function activate(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:40', 'regex:/^[a-z0-9_]+$/'],
+            'active' => ['required', 'boolean'],
+        ]);
+        $on = (bool) $data['active'];
+        $name = $this->premium->setActive((int) $request->user()->id, $this->version($request), $data['code'], $on);
+
+        return back()->with('success', $on ? "{$name} is active: its bonuses now apply." : "{$name} is inactive.");
+    }
+
+    public function activateAll(Request $request): RedirectResponse
+    {
+        $count = $this->premium->activateAll((int) $request->user()->id, $this->version($request));
+
+        return back()->with('success', $count === 1 ? 'Activated 1 piece.' : "Activated {$count} pieces.");
+    }
+
     public function takeOff(Request $request): RedirectResponse
     {
         $data = $request->validate(['category' => ['required', 'string', 'max:10']]);

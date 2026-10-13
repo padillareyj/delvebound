@@ -784,7 +784,7 @@ CREATE TABLE premium_items (
 
 -- On characters:
 --   premium_cash INT UNSIGNED NULL   -- cents; NULL = never touched, read as balance.json premium.starting_cash_cents
---   premium JSON NULL                -- {"owned": ["wings_void"], "equipped": {"wings": "wings_void"}}
+--   premium JSON NULL                -- {"owned": ["wings_void"], "active": ["wings_void"], "equipped": {"wings": "wings_void"}}
 
 -- On shop_transactions:
 --   action ENUM('buy','sell','use','premium')
@@ -1261,7 +1261,7 @@ place, plus gold. A human trains from the hero page (`POST /character/skills/{co
 
 ```
 power = power_per_level × level + power_per_skill_rank × (sum of skill ranks) + power_per_horcrux_tier × tier
-      + Σ premium_items.power of the worn premium pieces (§16)
+      + Σ premium_items.power of the active premium pieces (§16)
 ```
 
 The header, the hero page, and the leaderboard show it. Combat uses the skill, horcrux, and premium bonuses, not the power number.
@@ -1640,7 +1640,7 @@ allocate_stat_points(bot)                           # 8.3
 equip_best_gear(bot)                                # 8.4: from current inventory
 train_skills(bot)                                   # 6.8: one rank, lowest rank first, if gold and mats allow
 feed_horcrux(bot)                                   # 6.8: up to bot_feed_per_run junk items, stop at the next tier
-premium_step(bot)                                   # 16.4: wear best owned pieces, buy ≤ bot_buys_per_run (bots only)
+premium_step(bot)                                   # 16.5: wear best owned pieces, buy ≤ bot_buys_per_run (bots only)
 sell_junk(bot)                                      # 8.5: via the shop ledger (fed items are already destroyed)
 place   = choose_destination(bot, memory)           # 8.7: respects min_level; may farm an essence
 shop_step(bot, place)                               # 8.6: bandage, gear upgrade, potions, buff; re-equip if bought
@@ -2117,10 +2117,10 @@ and Inertia swaps the page in place. The HTTP side uses the default `mysql` conn
 | `/login` | `auth/Login` | `accounts` | `POST /login`: session; `accounts.last_login_at`, `failed_logins`, `locked_until`. `POST /logout` |
 | `/account` | `Account` | own account | `POST /account/password`: change password (requires the current one) |
 | `/` | `Dashboard` | own character summary, unread mail count, pending order, belt, last `simulation_runs` row, recent trips | – |
-| `/character` | `Character` | left menu: Character (sheet, attributes, combat profile, power, auto mode), Skills, Horcrux, Inventory (`v_inventory` slot grid, equipment, belt, sealed `loot_boxes`, material stacks), Forge (§6.9). `?tab=skills\|horcrux\|inventory\|forge` opens that section. `Stats::derived()` includes skill, horcrux, and premium bonuses; a "Stat bonuses" panel shows base → bonus → total per stat and each bonus source; the power panel shows the portrait with worn premium pieces. The forge quote (`Forge::quote`) is loaded when `forge_a` and `forge_b` are set | `POST /character/points`, `/character/prep` (retreat, potions, auto-repeat, and auto mode + personality + map choice `profile` or `best`), `/character/respec` (cost `50·level` gold **[T]**), `/character/skills/{code}`, `/character/horcrux`, plus the old pack writes below |
+| `/character` | `Character` | left menu: Character (sheet, attributes, combat profile, power, auto mode), Skills, Horcrux, Inventory (`v_inventory` slot grid, equipment, belt, sealed `loot_boxes`, material stacks), Forge (§6.9), Collection (every premium piece, owned or locked, with activate / equip, §16.3). `?tab=skills\|horcrux\|inventory\|forge\|collection` opens that section. `Stats::derived()` includes skill, horcrux, and premium bonuses; a "Stat bonuses" panel shows base → bonus → total per stat and each bonus source; the power panel shows the portrait with equipped premium pieces. The forge quote (`Forge::quote`) is loaded when `forge_a` and `forge_b` are set | `POST /character/points`, `/character/prep` (retreat, potions, auto-repeat, and auto mode + personality + map choice `profile` or `best`), `/character/respec` (cost `50·level` gold **[T]**), `/character/skills/{code}`, `/character/horcrux`, the Collection tab's `/premium/activate`, `/premium/activate-all`, `/premium/wear`, `/premium/take-off`, plus the old pack writes below |
 | `/pack` | redirects to `/character` | — | `POST /pack/equip`, `/pack/unequip` (refused when the inventory already holds `inventory_capacity` items), `/pack/belt` (≤ `BELT_SLOTS` total), `/pack/bandage`, `/pack/chests/{id}/open`, `/pack/forge` (two unequipped pieces, same slot; §6.9). Gear is a grid of icons; stats show on hover |
 | `/market` | `Market` | `shop_listings` (+ templates), own gold/level/inventory, recent `shop_transactions` | `POST /market/buy`, `/market/sell-item`, `/market/sell-consumable` (§7.7 rules, ledger row per action; consumables buy/sell 1–20 at a time, selling shrinks `belt_qty` to what is left) |
-| `/premium` | `Premium` | `premium_items`, own `premium_cash` / `premium`, per-item stat preview from `Stats::derived`, recent premium `shop_transactions` | `POST /premium/buy` (`code`), `/premium/wear` (`code`), `/premium/take-off` (`category`); §16 rules |
+| `/premium` | `Premium` | `premium_items`, own `premium_cash` / `premium`, per-item stat preview from `Stats::derived`, recent premium `shop_transactions` | `POST /premium/buy` (`code`); owned pieces link to the Hero Collection tab; §16 rules |
 | `/map` | `Map` | `places` incl. **min/rec/max levels**, own past `trips` per place | `POST /map/order` (orders flow below), `DELETE /map/order` cancels the pending order; "Rest in town" = the Town place |
 | `/mail`, `/mail/{id}` | `mail/Index`, `mail/Show` | own `mail` (inbox, paging, filter by outcome/unread) | opening marks `is_read`; `DELETE /mail/{id}` soft-deletes (`deleted_at`); `POST /mail/read-all` marks the inbox read |
 | `/trips/{id}` | `Trip` | own `trips`, `trip_encounters.log`, `trip_loot` | – (animated round-by-round battle replay) |
@@ -2521,7 +2521,7 @@ Python `sim/` and the old `src/`, `templates/`, `bin/` folders removed.
 | 27 | **A newcomer on 10% of runs, cap 48.** `spawn_chance` is 0.10, so most runs add nobody. On a hit: a random personality, level 1 or inside the top window but never the current highest level, with rolled gear above level 1, and a "A hero has been born" letter. The six profiles stay. 1000 was rejected because every bot delves and enters the arena. | A birth every run would fill the town too fast. | Rey |
 | 28 | **XP to next level compounds by 5% per level** on top of `100 · L^1.6` (`xp.growth` in `balance.json`). | A pure power curve flattens: each new level barely costs more than the last. The percent keeps the gap widening, in the same spirit as Ragnarok's base EXP, without a pure exponential that would outrun monster XP. | Rey |
 | 29 | **A generated dungeon is a climb.** The last place of a new region spans `dungeon_band_width` (11) levels. Trash steps up the band; the boss is always `rec_max`. Depth pressure makes a mid-band monster a real threat to someone at the floor. Trash cannot roll the boss-tier templates; the boss and the clear chest can. | Rey wanted a 40–50 dungeon to stay hard at 40, with the boss at 50 and the best loot on that boss. Failing the clear while under-levelled is the intended result unless the gear is ahead. | Rey |
-| 30 | **Premium store with play money (§16).** Every character, bots and newcomers included, starts with **$100.00** (`premium.starting_cash_cents`). Titles, wings, auras, pets, and frames add bonus stats and power. One worn piece per category. Gold bundles turn dollars into gold. There is no real payment and no way to earn more dollars in v1. Bots buy at most one piece per run with a fixed rule; auto-mode humans never spend dollars. | Rey wanted the mobile-RPG "HP bonus / attack bonus" feel and cosmetics everyone, bots included, can show off. | Rey |
+| 30 | **Premium store with play money (§16).** Every character, bots and newcomers included, starts with **$100.00** (`premium.starting_cash_cents`). Titles, wings, auras, pets, and frames add bonus stats and power. Every **active** owned piece counts; one piece per category is equipped for the look (§16.3, collection tab on the Hero page). Gold bundles turn dollars into gold. There is no real payment and no way to earn more dollars in v1. Bots buy at most one piece per run with a fixed rule; auto-mode humans never spend dollars. | Rey wanted the mobile-RPG "HP bonus / attack bonus" feel and cosmetics everyone, bots included, can show off. | Rey |
 | 31 | **Mobile-style bonus layer.** Percent bonuses (`hp_pct`, `attack_pct`, `defense_pct`) after the flat sums, plus four new stats: lifesteal, armor pierce, damage reduction, and XP bonus. Only bonus sources set them, not gear. The arena now applies the same bonus map as trips, so skills and the horcrux count in duels too. | One bonus path for trips, arena, the best-map preview, and the sheet. The arena leaving out skills and the horcrux was an oversight. | Rey + design |
 | 32 | **The forge combines two pieces.** Same template slot, both unequipped. Gold is spent either way. The attempt cracks (both destroyed), yields a new piece at the better rarity, or sings (one tier higher, or a stronger legendary). Odds improve with the lower piece's rarity and with LUK. The website shows `Forge::quote`. Bots do not forge. | A gold sink that can fail or turn two spare pieces into something finer, without a recipe list. | Rey |
 
@@ -2659,34 +2659,50 @@ the website (`PremiumService`), the bots, the trip, the arena, and the best-map 
 
 | Category | Slot rule | Examples (price → bonus) |
 |---|---|---|
-| `title` | one worn; shown next to the name everywhere | the Wanderer $2.99 (+2% HP) · Kingslayer $14.99 (+6% attack, +10% crit dmg) · Ascendant $29.99 (+5% HP/attack/defense, +10% XP) |
-| `wings` | one worn; drawn either side of the portrait | Feathered $9.99 (+2 speed, +1.5% dodge) · Nightwing $14.99 (+3% lifesteal) · Voidrender $44.99 (+8% attack, +10% pierce, +2% crit) |
-| `aura` | one worn; glow behind the portrait | Ember $7.99 (+3% attack) · Frost $7.99 (+4% defense) · Starlight $19.99 (+3% crit, +15% crit dmg) |
-| `pet` | one worn; sits at the portrait's foot | Owl $9.99 (+10% XP) · Lucky Cat $11.99 (+10% MF, +10% gold) · Baby Dragon $24.99 (+4% attack/HP, +5% pierce) |
-| `frame` | one worn; portrait border | Bronze $1.99 · Gilded $4.99 · Celestial $12.99 |
+| `title` | many active; one equipped, shown next to the name everywhere | the Wanderer $2.99 (+2% HP) · Kingslayer $14.99 (+6% attack, +10% crit dmg) · Ascendant $29.99 (+5% HP/attack/defense, +10% XP) |
+| `wings` | many active; one equipped, drawn either side of the portrait | Feathered $9.99 (+2 speed, +1.5% dodge) · Nightwing $14.99 (+3% lifesteal) · Voidrender $44.99 (+8% attack, +10% pierce, +2% crit) |
+| `aura` | many active; one equipped, glow behind the portrait | Ember $7.99 (+3% attack) · Frost $7.99 (+4% defense) · Starlight $19.99 (+3% crit, +15% crit dmg) |
+| `pet` | many active; one equipped, sits at the portrait's foot | Owl $9.99 (+10% XP) · Lucky Cat $11.99 (+10% MF, +10% gold) · Baby Dragon $24.99 (+4% attack/HP, +5% pierce) |
+| `frame` | many active; one equipped, portrait border | Bronze $1.99 · Gilded $4.99 · Celestial $12.99 |
 | `bundle` | not worn; repeatable | Pouch $0.99 → 100 gold · Chest $4.99 → 600 · Dragon's Hoard $9.99 → 1,400 |
 
-A full set of the best piece in each slot costs about $133, so $100 forces a choice. Each piece also
-has a `power` value added to the power level while worn (§6.8). `delve:check-content` flags a non-bundle
+Buying the whole catalog costs far more than $100, so the allowance forces a choice. Each piece also
+has a `power` value added to the power level while it is active (§6.8). `delve:check-content` flags a non-bundle
 piece without bonuses and any bonus key outside `Stats::BONUS_KEYS`.
 
-### 16.3 Rules (website)
+### 16.3 Owned, active, equipped
 
-- **Buy** (`POST /premium/buy`): lock the character, check `row_version`, the item exists and is
-  active, it is not already owned (bundles repeat), and the cash covers `price_cents`. A piece becomes
-  owned and is **worn at once** in its category (replacing the worn one, which stays owned). A bundle
-  adds `grant_gold` to `characters.gold`. One `shop_transactions` row: `action='premium'`,
+A piece moves through three states, the mobile-RPG collection pattern:
+
+- **Owned:** bought once, kept forever.
+- **Active:** any number of owned pieces. **Every active piece adds its bonuses and power**, so ten
+  active titles stack ten title bonuses (still capped by §3.2.1).
+- **Equipped:** at most one active piece per category. It is only the look: the portrait, the name
+  badge, and the leaderboard glyphs. Equipping a piece activates it; deactivating an equipped piece
+  takes it off. So equipped ⊆ active ⊆ owned, and `Premium::state` enforces it on every read.
+
+A `characters.premium` value saved before activation existed has no `active` key; it reads as every
+owned piece active, so nobody loses stats.
+
+### 16.4 Rules (website)
+
+- **Buy** (`POST /premium/buy`, store page): lock the character, check `row_version`, the item exists and
+  is sold, it is not already owned (bundles repeat), and the cash covers `price_cents`. A piece becomes
+  owned, active, and **equipped at once** in its category (the previously equipped one stays active). A
+  bundle adds `grant_gold` to `characters.gold`. One `shop_transactions` row: `action='premium'`,
   `premium_item_id`, `cash_delta`, `cash_after`, `gold_delta` (bundle gold or 0).
-- **Wear** (`POST /premium/wear`) needs an owned piece. **Take off** (`POST /premium/take-off`) empties a
-  category. Neither costs anything.
+- **Hero → Collection** (`/character?tab=collection`) lists every wearable piece by category, owned ones
+  first and the rest locked with a store link. Its writes cost nothing:
+  `POST /premium/activate` (`code`, `active` true/false; owned pieces only, and a no-op is refused),
+  `/premium/activate-all`, `/premium/wear` (`code`, owned), `/premium/take-off` (`category`, it stays active).
 - Each write is one transaction behind `auth` + `run.guard`, like every other game write.
-- The page previews, for every piece not worn, the exact change to the derived stats
+- The store previews, for every piece not active, the exact change to the derived stats
   (`Stats::derived` with and without it). React only displays it.
 
-### 16.4 Bots
+### 16.5 Bots
 
-In the bot phase (§8.2), after the horcrux step, a **bot** (`is_bot = 1`) first wears its best owned
-piece per category, then may buy up to `bot_buys_per_run` (1) pieces. A candidate's gain is
+In the bot phase (§8.2), after the horcrux step, a **bot** (`is_bot = 1`) first activates every owned
+piece and equips its priciest owned piece per category, then may buy up to `bot_buys_per_run` (1) pieces. A candidate's gain is
 `Premium::score(after) − score(before)`, where the score is the profile's `gear_weights` over the derived
 stats (the same units as §8.4) plus `premium.bot_extra_weights` for lifesteal, pierce, damage reduction,
 and XP. It buys the largest gain above `bot_min_gain`; ties go to the cheaper piece, then the code. It

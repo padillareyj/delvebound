@@ -1,8 +1,9 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import clsx from 'clsx';
-import { Backpack, Bot, Gem, Hammer, Minus, Plus, RotateCcw, Shield, Sparkles, Swords, UserRound } from 'lucide-react';
+import { Backpack, Bot, Crown, Gem, Hammer, Minus, Plus, RotateCcw, Shield, Sparkles, Swords, UserRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { HorcruxBoard, MaterialsBoard, SkillsBoard, type HorcruxView, type MaterialView, type SkillView } from '@/components/GrowthBoard';
+import CollectionBoard from '@/components/CollectionBoard';
 import ForgeBoard from '@/components/ForgeBoard';
 import InventoryBoard from '@/components/InventoryBoard';
 import { Portrait, TitleBadge } from '@/components/Premium';
@@ -12,7 +13,7 @@ import { confirmDialog } from '@/lib/dialog';
 import {
     BONUS_LABELS, BONUS_ORDER, DERIVED_LABELS, INJURY_LABELS, STAT_NAMES, bonusLine, derivedDelta, derivedValue, formatDate, money, useTimezone,
 } from '@/lib/format';
-import type { Appearance, Consumable, Derived, ForgeQuote, Item, PackItem, SealedChest, StatKey, Stats } from '@/types';
+import type { Appearance, Collection, Consumable, Derived, ForgeQuote, Item, PackItem, SealedChest, StatKey, Stats } from '@/types';
 
 interface Props {
     character: {
@@ -53,6 +54,7 @@ interface Props {
     bonusSources: { source: string; bonus: Record<string, number> }[];
     appearance: Appearance;
     cash: number;
+    collection: Collection;
     skills: SkillView[];
     horcrux: HorcruxView;
     materials: MaterialView[];
@@ -73,6 +75,7 @@ const TABS = [
     { id: 'horcrux', label: 'Horcrux', icon: Gem },
     { id: 'inventory', label: 'Inventory', icon: Backpack },
     { id: 'forge', label: 'Forge', icon: Hammer },
+    { id: 'collection', label: 'Collection', icon: Crown },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -93,7 +96,7 @@ export default function Character({
     character: c, derived, baseDerived, buffs, perPoint, respecCost, pointPool, baseStat, power,
     skills, horcrux, materials, rowVersion, injury, equipment, inventory, consumables, chests, capacity, beltSlots,
     forgeQuote,
-    autoProfiles, powerParts, plainDerived, bonusSources, appearance, cash,
+    autoProfiles, powerParts, plainDerived, bonusSources, appearance, cash, collection,
 }: Props) {
     const tz = useTimezone();
     const tab = tabFromUrl(usePage().url);
@@ -136,6 +139,7 @@ export default function Character({
 
     const skillRanks = skills.reduce((n, skill) => n + skill.rank, 0);
     const lootStacks = materials.filter((mat) => mat.qty > 0).length;
+    const ownedPieces = collection.pieces.filter((p) => p.owned);
 
     const bump = (s: StatKey, d: number) =>
         setAlloc((a) => ({ ...a, [s]: Math.max(0, a[s] + (d > 0 ? Math.min(d, left) : d)) }));
@@ -185,6 +189,7 @@ export default function Character({
                             : item.id === 'skills' ? `${skillRanks} ranks`
                             : item.id === 'horcrux' ? `Tier ${horcrux.tier}/${horcrux.max_tier}`
                             : item.id === 'forge' ? 'Combine two pieces'
+                            : item.id === 'collection' ? `${ownedPieces.length} owned · ${ownedPieces.filter((p) => p.active).length} active`
                             : `${inventory.length} gear · ${lootStacks} loot`;
                         return (
                             <button
@@ -511,6 +516,10 @@ export default function Character({
 
                 {tab === 'forge' && (
                     <ForgeBoard rowVersion={rowVersion} gold={c.gold} inventory={inventory} forgeQuote={forgeQuote} />
+                )}
+
+                {tab === 'collection' && (
+                    <CollectionBoard collection={collection} appearance={appearance} level={c.level} name={c.name} cash={cash} rowVersion={rowVersion} />
                 )}
             </div>
             <p className="mt-6 flex items-center gap-2 text-xs text-ink-500">

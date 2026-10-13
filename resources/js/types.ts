@@ -26,6 +26,18 @@ export interface Appearance {
     gear: PremiumPiece[];
 }
 
+export interface CollectionPiece extends PremiumPiece {
+    owned: boolean;
+    active: boolean;
+    worn: boolean;
+}
+
+export interface Collection {
+    pieces: CollectionPiece[];
+    bonus: Record<string, number>;
+    power: number;
+}
+
 export interface Hero {
     id: number;
     name: string;

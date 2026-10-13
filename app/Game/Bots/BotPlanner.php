@@ -24,7 +24,9 @@ final class BotPlanner
             ? Premium::botShop($state, $premium, $balance)
             : [];
         $premiumChanged = isset($state['premium']) && (
-            $premiumBought !== [] || ($premiumBefore['equipped'] ?? []) !== $state['premium']['equipped']
+            $premiumBought !== []
+            || ($premiumBefore['equipped'] ?? []) !== $state['premium']['equipped']
+            || ($premiumBefore['active'] ?? []) !== $state['premium']['active']
         );
         $sold = Gear::sellJunk($state, $balance);
         $place = Destination::choose($state, $places, $memory, $rng, $balance);

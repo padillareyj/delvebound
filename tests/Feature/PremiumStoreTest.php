@@ -120,6 +120,36 @@ class PremiumStoreTest extends TestCase
         $this->assertSame(['title_delver', 'title_wanderer'], $premium['owned']);
     }
 
+    public function test_collection_tab_activates_many_titles_and_wears_one(): void
+    {
+        $this->write('/premium/buy', ['code' => 'title_wanderer']);
+        $this->write('/premium/buy', ['code' => 'title_delver']);
+        $props = $this->actingAs($this->account)->get('/character?tab=collection')->viewData('page')['props'];
+        $owned = array_values(array_filter($props['collection']['pieces'], fn ($p) => $p['owned']));
+        $this->assertCount(2, $owned);
+        $this->assertTrue(collect($owned)->every(fn ($p) => $p['active']));
+        $this->assertSame(1, collect($owned)->where('worn', true)->count());
+        $this->assertFalse(collect($props['collection']['pieces'])->contains(fn ($p) => $p['category'] === 'bundle'));
+        $bothPower = $props['powerParts']['premium'];
+
+        $this->write('/premium/activate', ['code' => 'title_delver', 'active' => false])->assertSessionHas('success');
+        $premium = json_decode($this->fresh()['premium'], true);
+        $this->assertSame(['title_wanderer'], $premium['active']);
+        $this->assertSame([], (array) $premium['equipped'], 'the worn title was turned off, so it came off');
+        $props = $this->actingAs($this->account)->get('/character')->viewData('page')['props'];
+        $this->assertLessThan($bothPower, $props['powerParts']['premium']);
+
+        $this->write('/premium/activate', ['code' => 'title_delver', 'active' => false])->assertSessionHas('error');
+        $this->write('/premium/activate', ['code' => 'title_ascendant', 'active' => true])->assertSessionHas('error');
+        $this->write('/premium/activate', ['code' => 'title_delver'])->assertSessionHasErrors('active');
+
+        $this->write('/premium/activate-all', [])->assertSessionHas('success');
+        $this->assertSame(['title_delver', 'title_wanderer'], json_decode($this->fresh()['premium'], true)['active']);
+        $this->write('/premium/activate-all', [])->assertSessionHas('error');
+        $props = $this->actingAs($this->account)->get('/character')->viewData('page')['props'];
+        $this->assertSame($bothPower, $props['powerParts']['premium']);
+    }
+
     public function test_gold_bundle_adds_gold_and_repeats(): void
     {
         $gold = (int) $this->fresh()['gold'];

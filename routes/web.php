@@ -70,6 +70,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/premium/buy', [PremiumController::class, 'buy']);
         Route::post('/premium/wear', [PremiumController::class, 'wear']);
         Route::post('/premium/take-off', [PremiumController::class, 'takeOff']);
+        Route::post('/premium/activate', [PremiumController::class, 'activate']);
+        Route::post('/premium/activate-all', [PremiumController::class, 'activateAll']);
 
         Route::post('/map/order', [GameController::class, 'order']);
         Route::delete('/map/order', [GameController::class, 'cancelOrder']);

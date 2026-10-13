@@ -82,7 +82,7 @@ export function Portrait({ look, label, size = 'lg', className }: {
             {wings && (
                 <>
                     <span
-                        className={clsx('absolute top-1/2 origin-right -translate-y-1/2 animate-wing-left select-none', big ? 'left-1 text-5xl' : 'left-0 text-lg')}
+                        className={clsx('absolute top-1/2 origin-center -translate-y-1/2 animate-wing-left select-none', big ? 'left-1 text-5xl' : 'left-0 text-lg')}
                         aria-hidden
                     >
                         {wings.glyph}
