@@ -217,6 +217,7 @@ class GameQueries
             'slot' => $row['template_slot'] ?? $row['slot'] ?? null,
             'item_type' => $row['item_type'] ?? null,
             'two_handed' => $row['two_handed'] ?? false,
+            'rarity' => $row['rarity'] ?? null,
         ]);
     }
 

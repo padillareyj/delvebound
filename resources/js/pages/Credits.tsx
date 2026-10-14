@@ -22,22 +22,50 @@ export default function Credits() {
             </Link>
             <h1 className="text-3xl font-extrabold tracking-wide text-lantern-200">Credits</h1>
             <p className="mt-3 text-sm leading-relaxed text-ink-200">
-                Weapon, armor, shield, jewelry, and potion drawings are SVG icons from{' '}
-                <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://game-icons.net/" rel="noreferrer">game-icons.net</a>,
-                used under the{' '}
-                <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://creativecommons.org/licenses/by/3.0/" rel="noreferrer">Creative Commons Attribution 3.0 Unported</a>{' '}
-                license. The files are stored with this game and served from this site.
+                Weapon, armor, shield, jewelry, and potion pictures are painted icons stored in this game and served from this site.
+                None of them are taken from World of Warcraft or any other commercial game.
             </p>
-            <h2 className="mt-8 text-lg font-bold text-ink-100">Authors</h2>
-            <ul className="mt-2 space-y-1 text-sm text-ink-200">
-                <li>Lorc — <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://lorcblog.blogspot.com" rel="noreferrer">lorcblog.blogspot.com</a></li>
-                <li>Delapouite — <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://delapouite.com" rel="noreferrer">delapouite.com</a></li>
-                <li>Skoll</li>
-                <li>Carl Olsen</li>
+            <h2 className="mt-8 text-lg font-bold text-ink-100">CC0 (public domain)</h2>
+            <ul className="mt-2 space-y-2 text-sm text-ink-200">
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/flare-weapon-icons-2" rel="noreferrer">Flare weapon icons 2</a>
+                    {' '}— models by Clint Bellanger, paint by Justin Nichol.
+                </li>
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/armor-icons-by-equipment-slot" rel="noreferrer">Flare armor icons by equipment slot</a>
+                    {' '}— Clint Bellanger and contributors.
+                </li>
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/osare-weapon-icons" rel="noreferrer">OSARE weapon icons</a>
+                    {' '}— Blarumyrran.
+                </li>
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/2d-rpg-item-icons" rel="noreferrer">2D RPG item icons</a>
+                    {' '}— Kit.
+                </li>
+            </ul>
+            <h2 className="mt-8 text-lg font-bold text-ink-100">CC BY 3.0</h2>
+            <ul className="mt-2 space-y-2 text-sm text-ink-200">
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/fantasy-icon-pack-by-ravenmore-0" rel="noreferrer">Fantasy Icon Pack 2.0</a>
+                    {' '}— Ravenmore. Creative Commons Attribution 3.0.
+                </li>
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/weapon-icons-32x32px-painterly" rel="noreferrer">Weapon icons 32×32 (painterly)</a>
+                    {' '}and the{' '}
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/armor-icons-32x32-px-painterly" rel="noreferrer">matching armor, rings, and necklaces</a>
+                    {' '}— Scrittl. Used under Creative Commons Attribution 3.0.
+                </li>
+                <li>
+                    Two supply drawings that those packs do not include (a smoke cloud and a bandage) remain SVG icons from{' '}
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://game-icons.net/" rel="noreferrer">game-icons.net</a>
+                    {' '}by Lorc, also CC BY 3.0.
+                </li>
             </ul>
             <p className="mt-6 text-sm text-ink-300">
-                The drawings themselves are unchanged. A full file list is in{' '}
+                A file list is in{' '}
                 <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="/item-art/CREDITS.md">the icon credits file</a>.
+                The filename prefix is the pack.
             </p>
         </>
     );

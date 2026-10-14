@@ -1467,14 +1467,21 @@ The Wilds has 16 (12 regular + 4 bosses). The Salt Marches and the Ashen Crown a
 
 **Item art.** `App\Game\ItemArt` chooses a drawing from `resources/item-art/catalog.json`. The inputs
 are the template slot, item type, two-handed flag, and name keywords on the code and template name (a
-bow stays a bow; a two-handed sword uses the two-handed sword). The same template always gets the same
-drawing, including when the display name is an affix title or a legendary name. An `item_templates.icon`
-value is used only when it names a catalog stem. Empty slots fall back by slot; anything else falls
-back to a bag. The website tints the SVG with the rarity color variables. Files live in
-`public/item-art/` and are served at `/item-art/` (game-icons.net, CC BY 3.0). Do not put them under
-`/icons/`: Ubuntu's Apache aliases that path to `/usr/share/apache2/icons/`, so `public/icons/` is never
-reached. The footer and `/credits` name Lorc, Delapouite,
-Skoll, and Carl Olsen. The React UI displays the stem; it does not re-implement the keyword rules.
+bow stays a bow; a two-handed sword, axe, or maul uses a two-handed drawing). When a family has several
+icons, the file is a stable hash of the template code (otherwise the template name) into a window of
+that list. The list runs plain to fancy, and a higher rarity shifts the window toward the fancy end, so
+the same code always looks the same and a legendary of that code is never plainer than the common.
+Changing the display name (affixes, legendary titles) does not change the icon. An `item_templates.icon`
+value is used only when it names a catalog file. Empty slots fall back by slot; anything else falls
+back to a backpack. Painted icons keep their colors; the rarity color is a glow and a frame. Two supply
+drawings (smoke, bandage) stay SVGs and are tinted with the rarity color. Files live in
+`public/item-art/` (128×128 WebP, plus those two SVGs) and are served at `/item-art/`. Sources are Flare
+weapon icons 2, Flare armor by equipment slot, and OSARE weapon icons (CC0; Clint Bellanger, Justin
+Nichol, Blarumyrran), Kit's 2D RPG item icons (CC0), Ravenmore's Fantasy Icon Pack 2.0 and Scrittl's
+painterly weapon and armor icons (CC BY 3.0), and Lorc's game-icons.net drawings for the two SVGs
+(CC BY 3.0). Do not put them under `/icons/`: Ubuntu's Apache aliases that path to
+`/usr/share/apache2/icons/`, so `public/icons/` is never reached. The footer and `/credits` name the
+authors. The React UI displays the filename; it does not re-implement the keyword rules.
 
 ### 7.4 Affixes (15)
 
@@ -1949,7 +1956,7 @@ Sunken Crypt (Lv 6–9), Town.
   "hp_start": 262, "hp_end": 64, "hp_end_pct": 24,
   "xp": 2330, "gold": 241, "level_before": 8, "level_after": 9,
   "items": [{"name": "Heavy Iron Longsword of the Bear", "rarity": "uncommon", "slot": "weapon",
-             "item_type": "sword", "two_handed": false, "code": "iron_longsword", "icon": "lorc-broadsword"}],
+             "item_type": "sword", "two_handed": false, "code": "iron_longsword", "icon": "scrittl-sword-long-4.webp"}],
   "lost_items": [], "injury": {"severity": 0, "runs_left": 0},
   "consumables_used": [{"code": "healing_potion", "qty": 1}, {"code": "stoneskin_tonic", "qty": 1}]
 }
@@ -2255,7 +2262,7 @@ application.
 ├── public/                    # Apache DocumentRoot → http://delvebound.host
 │   ├── index.php  .htaccess   # Laravel front controller
 │   ├── build/                 # Vite output (npm run build)
-│   └── item-art/              # local game-icons.net SVGs + CREDITS.md, URL /item-art/ (not /icons/)
+│   └── item-art/              # painted WebP icons, two SVG fallbacks, CREDITS.md; URL /item-art/ (not /icons/)
 ├── resources/
 │   ├── item-art/catalog.json  # icon families, slot fallbacks, consumable stems
 │   ├── js/                    # app.tsx, pages/, components/, layouts/, lib/, types/
@@ -2544,6 +2551,7 @@ Python `sim/` and the old `src/`, `templates/`, `bin/` folders removed.
 | 31 | **Mobile-style bonus layer.** Percent bonuses (`hp_pct`, `attack_pct`, `defense_pct`) after the flat sums, plus four new stats: lifesteal, armor pierce, damage reduction, and XP bonus. Only bonus sources set them, not gear. The arena now applies the same bonus map as trips, so skills and the horcrux count in duels too. | One bonus path for trips, arena, the best-map preview, and the sheet. The arena leaving out skills and the horcrux was an oversight. | Rey + design |
 | 32 | **The forge combines two pieces.** Same template slot, both unequipped. Gold is spent either way. The attempt cracks (both destroyed), yields a new piece at the better rarity, or sings (one tier higher, or a stronger legendary). Odds improve with the lower piece's rarity and with LUK. The website shows `Forge::quote`. Bots do not forge. | A gold sink that can fail or turn two spare pieces into something finer, without a recipe list. | Rey |
 | 33 | **Item drawings come from game-icons.net.** `ItemArt` maps slot, weapon class, handedness, and name keywords to a local SVG. The site tints it with the rarity color. Files live in the repo (CC BY 3.0). The footer and `/credits` attribute Lorc, Delapouite, Skoll, and Carl Olsen. | Gear had no pictures. The mapping stays stable when affixes and legendary titles change the display name. | Rey |
+| 34 | **Painted item icons replace the game-icons.net set.** Weapons, armor, shields, jewelry, and potions are 128×128 WebP from Flare, OSARE, Ravenmore, Scrittl, and Kit (CC0 or CC BY 3.0). No commercial-game rips. Each class keeps several icons where the packs have them; `ItemArt` hashes the template code into a plain-to-fancy window that shifts with rarity. A two-handed weapon still uses a two-handed drawing. Smoke and bandage stay SVG fallbacks. The rarity color glows a painting instead of masking it into a silhouette. | The silhouette set read as line art. Painted icons should differ from bow to bow and still match the weapon in hand. | Rey |
 
 ---
 

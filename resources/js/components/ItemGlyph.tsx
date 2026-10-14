@@ -2,8 +2,9 @@ import clsx from 'clsx';
 import { glyphIcon } from '@/lib/itemArt';
 
 /**
- * A local game-icons.net drawing, tinted with currentColor (the rarity variables
- * when a parent uses text-rarity-*). The icon stem is chosen on the server.
+ * A local item drawing. Painted icons keep their colors and pick up a rarity
+ * glow from currentColor. The few SVG fallbacks are masked silhouettes.
+ * The filename is chosen on the server.
  */
 export function ItemGlyph({
     icon,
@@ -15,7 +16,11 @@ export function ItemGlyph({
     className?: string;
 }) {
     const id = glyphIcon(icon, slot);
-    const url = `url("/item-art/${id}.svg")`;
+    const src = `/item-art/${id}`;
+    if (!id.endsWith('.svg')) {
+        return <img src={src} alt="" className={clsx('item-art-raster', className)} />;
+    }
+    const url = `url("${src}")`;
     return (
         <span
             aria-hidden

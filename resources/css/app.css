@@ -237,4 +237,9 @@
         -webkit-mask-size: contain;
         mask-size: contain;
     }
+    .item-art-raster {
+        display: inline-block;
+        object-fit: contain;
+        filter: drop-shadow(0 0 2px currentColor);
+    }
 }

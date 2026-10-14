@@ -1,35 +1,186 @@
 {
   "families": {
-    "sword": ["skoll-gladius", "lorc-broadsword", "lorc-pointy-sword", "lorc-shining-sword"],
-    "cutlass": ["lorc-saber-slash", "delapouite-katana"],
-    "greatsword": ["delapouite-two-handed-sword"],
-    "axe": ["delapouite-hatchet", "lorc-wood-axe", "lorc-fire-axe"],
-    "greataxe": ["lorc-battle-axe", "lorc-battered-axe"],
-    "mace": ["lorc-spiked-mace", "lorc-mace-head", "delapouite-flail", "lorc-flat-hammer"],
-    "dagger": ["lorc-plain-dagger", "lorc-stiletto", "lorc-bone-knife", "lorc-bowie-knife"],
-    "spear": ["lorc-barbed-spear", "lorc-trident"],
-    "staff": ["lorc-wizard-staff", "delapouite-bo"],
-    "wand": ["lorc-crystal-wand", "lorc-fairy-wand"],
-    "bow": ["lorc-high-shot", "lorc-pocket-bow", "delapouite-bow-arrow"],
-    "crossbow": ["carl-olsen-crossbow"],
-    "buckler": ["delapouite-viking-shield", "lorc-checked-shield", "lorc-rosa-shield", "delapouite-spiked-shield"],
-    "kite": ["lorc-bordered-shield", "lorc-crenulated-shield"],
-    "tower": ["delapouite-roman-shield"],
-    "cloth-head": ["lorc-hood", "lorc-cowled"],
-    "leather-head": ["delapouite-bandana", "delapouite-robin-hood-hat"],
-    "mail-head": ["lorc-visored-helm", "lorc-barbute", "lorc-horned-helm", "delapouite-closed-barbute", "lorc-spartan"],
-    "cloth-chest": ["lorc-robe", "delapouite-kimono"],
-    "leather-chest": ["lorc-leather-vest", "delapouite-leather-armor"],
-    "mail-chest": ["lorc-breastplate", "lorc-scale-mail", "lorc-lamellar", "lorc-mail-shirt"],
-    "cloth-hands": ["delapouite-bracer"],
-    "leather-hands": ["delapouite-gloves"],
-    "mail-hands": ["lorc-mailed-fist", "delapouite-gauntlet"],
-    "cloth-feet": ["delapouite-fur-boot"],
-    "leather-feet": ["lorc-boots"],
-    "mail-feet": ["lorc-steeltoe-boots", "delapouite-metal-boot", "delapouite-greaves"],
-    "ring": ["delapouite-diamond-ring", "delapouite-ring"],
-    "amulet": ["lorc-gem-pendant", "lorc-gem-chain", "delapouite-pearl-necklace"],
-    "bag": ["lorc-swap-bag"]
+    "sword": [
+      "osare-longsword.webp",
+      "scrittl-sword-long-1.webp",
+      "scrittl-sword-long-2.webp",
+      "scrittl-sword-long-3.webp",
+      "scrittl-sword-long-4.webp",
+      "raven-sword-wood.webp",
+      "raven-sword.webp",
+      "rpg-sword-default.webp",
+      "rpg-sword-steel.webp",
+      "raven-upg-sword.webp",
+      "rpg-sword-blue.webp"
+    ],
+    "cutlass": [
+      "scrittl-sword-short-1.webp",
+      "scrittl-sword-short-2.webp",
+      "scrittl-sword-short-3.webp",
+      "osare-shortsword.webp"
+    ],
+    "greatsword": [
+      "flare-zweihander.webp",
+      "osare-greatsword.webp"
+    ],
+    "axe": [
+      "flare-handaxe.webp",
+      "flare-infantry-axe.webp",
+      "scrittl-axe-1.webp",
+      "scrittl-axe-2.webp",
+      "scrittl-axe-3.webp",
+      "raven-axe.webp",
+      "raven-axe-2.webp",
+      "raven-upg-axe.webp"
+    ],
+    "greataxe": [
+      "flare-battle-axe.webp",
+      "raven-axe-double.webp",
+      "raven-axe-double-2.webp",
+      "raven-upg-axe-double.webp"
+    ],
+    "mace": [
+      "flare-club.webp",
+      "flare-reinforced-club.webp",
+      "flare-mace.webp",
+      "flare-smith-hammer.webp",
+      "scrittl-hammer-1.webp",
+      "scrittl-hammer-2.webp",
+      "scrittl-hammer-3.webp",
+      "raven-hammer.webp",
+      "raven-upg-hammer.webp"
+    ],
+    "maul": [
+      "flare-warhammer.webp",
+      "flare-maul.webp",
+      "scrittl-bigclub-1.webp",
+      "scrittl-bigclub-2.webp",
+      "scrittl-bigclub-3.webp"
+    ],
+    "dagger": [
+      "scrittl-dagger-1.webp",
+      "scrittl-dagger-2.webp",
+      "scrittl-dagger-3.webp",
+      "osare-dagger.webp",
+      "raven-dagger.webp",
+      "raven-upg-dagger.webp"
+    ],
+    "spear": [
+      "scrittl-spear-1.webp",
+      "scrittl-spear-2.webp",
+      "scrittl-spear-3.webp",
+      "scrittl-halberd-1.webp",
+      "scrittl-halberd-2.webp",
+      "scrittl-halberd-3.webp",
+      "raven-upg-spear.webp"
+    ],
+    "staff": [
+      "scrittl-staff-1.webp",
+      "scrittl-staff-2.webp",
+      "scrittl-staff-3.webp",
+      "osare-staff.webp",
+      "osare-greatstaff.webp"
+    ],
+    "wand": [
+      "osare-rod.webp",
+      "osare-wand.webp",
+      "raven-wand.webp",
+      "raven-upg-wand.webp"
+    ],
+    "bow": [
+      "scrittl-bow-1.webp",
+      "scrittl-bow-2.webp",
+      "scrittl-bow-3.webp",
+      "osare-shortbow.webp",
+      "osare-longbow.webp",
+      "osare-greatbow.webp",
+      "raven-bow.webp",
+      "raven-upg-bow.webp"
+    ],
+    "crossbow": [
+      "scrittl-xbow-1.webp",
+      "scrittl-xbow-2.webp",
+      "scrittl-xbow-3.webp"
+    ],
+    "buckler": [
+      "osare-buckler.webp",
+      "raven-shield-small.webp",
+      "raven-upg-shield-small.webp"
+    ],
+    "kite": [
+      "osare-shield.webp",
+      "raven-shield.webp",
+      "rpg-shield-default.webp"
+    ],
+    "tower": [
+      "rpg-shield-steel.webp",
+      "rpg-shield-blue.webp",
+      "raven-upg-shield.webp"
+    ],
+    "cloth-head": ["flare-hood-robe.webp"],
+    "leather-head": ["flare-hood-leather.webp", "rpg-helm-default.webp"],
+    "mail-head": [
+      "flare-helmet-chain.webp",
+      "flare-helmet-plate.webp",
+      "scrittl-helm-chain.webp",
+      "scrittl-helm-plate.webp",
+      "rpg-helm-steel.webp",
+      "raven-helmet.webp",
+      "rpg-helm-blue.webp",
+      "raven-upg-helmet.webp"
+    ],
+    "cloth-chest": [
+      "flare-torso-cloth.webp",
+      "flare-torso-robe.webp",
+      "scrittl-cloth-chest-1.webp",
+      "scrittl-cloth-chest-2.webp"
+    ],
+    "leather-chest": [
+      "flare-torso-leather.webp",
+      "osare-leather-armor.webp",
+      "scrittl-leather-chest.webp",
+      "rpg-chest-default.webp"
+    ],
+    "mail-chest": [
+      "flare-torso-chain.webp",
+      "flare-torso-plate.webp",
+      "osare-steel-armor.webp",
+      "scrittl-chain-breast.webp",
+      "scrittl-plate-breast.webp",
+      "rpg-chest-steel.webp",
+      "raven-armor.webp",
+      "rpg-chest-blue.webp",
+      "raven-upg-armor.webp"
+    ],
+    "cloth-hands": ["flare-bracers-robe.webp", "flare-gloves-fingerless.webp"],
+    "leather-hands": [
+      "flare-gloves-leather.webp",
+      "scrittl-leather-gloves.webp",
+      "rpg-gloves-default.webp"
+    ],
+    "mail-hands": [
+      "flare-gloves-chain.webp",
+      "flare-gloves-plate.webp",
+      "scrittl-plate-gloves.webp",
+      "rpg-gloves-steel.webp",
+      "rpg-gloves-blue.webp"
+    ],
+    "cloth-feet": ["flare-sandals.webp", "flare-boots-robe.webp"],
+    "leather-feet": [
+      "flare-boots-leather.webp",
+      "scrittl-leather-boots.webp",
+      "rpg-boots-default.webp"
+    ],
+    "mail-feet": [
+      "flare-boots-chain.webp",
+      "flare-boots-plate.webp",
+      "scrittl-plate-boots.webp",
+      "rpg-boots-steel.webp",
+      "rpg-boots-blue.webp"
+    ],
+    "ring": ["scrittl-ring-1.webp", "scrittl-ring-2.webp", "scrittl-ring-3.webp"],
+    "amulet": ["scrittl-necklace-1.webp", "scrittl-necklace-2.webp", "scrittl-necklace-3.webp"],
+    "bag": ["raven-backpack.webp"]
   },
   "fallback": {
     "weapon": "sword",
@@ -45,13 +196,13 @@
     "_default": "bag"
   },
   "consumables": {
-    "heal-minor": "lorc-potion-ball",
-    "heal": "delapouite-health-potion",
-    "heal-greater": "lorc-bubbling-flask",
-    "might": "lorc-standing-potion",
-    "defense": "lorc-round-bottom-flask",
-    "luck": "lorc-clover",
-    "flee": "lorc-dust-cloud",
-    "bandage": "lorc-bandage-roll"
+    "heal-minor": "rpg-potion-hp-small.webp",
+    "heal": "raven-potion-red.webp",
+    "heal-greater": "rpg-potion-hp-big.webp",
+    "might": "rpg-potion-sp-big.webp",
+    "defense": "raven-potion-blue.webp",
+    "luck": "raven-potion-green.webp",
+    "flee": "lorc-dust-cloud.svg",
+    "bandage": "lorc-bandage-roll.svg"
   }
 }

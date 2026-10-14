@@ -346,10 +346,10 @@ export default function GameLayout({ children }: { children: ReactNode }) {
                 </p>
                 <p className="mt-1">
                     <Link href="/credits" className="underline decoration-ink-700 underline-offset-2 hover:text-lantern-200">
-                        Item art by Lorc, Delapouite, Skoll, and Carl Olsen
+                        Item art by Clint Bellanger, Justin Nichol, Blarumyrran, Ravenmore, Scrittl, and Kit
                     </Link>
                     <span className="mx-1.5 text-ink-700">·</span>
-                    game-icons.net, CC BY 3.0
+                    CC0 and CC BY 3.0
                 </p>
             </footer>
             <Toasts />

@@ -7,47 +7,101 @@ use App\Game\ItemArt;
 /** Local item art: every seeded template and legendary base maps to a real drawing. */
 class ItemArtTest extends GameTestCase
 {
-    public function test_catalog_matches_the_svg_files_on_disk(): void
+    public function test_catalog_matches_the_files_on_disk(): void
     {
         $dir = dirname(__DIR__, 2).'/public/item-art';
         $files = [];
-        foreach (glob($dir.'/*.svg') as $path) {
-            $files[] = basename($path, '.svg');
+        foreach (array_merge(glob($dir.'/*.webp') ?: [], glob($dir.'/*.svg') ?: []) as $path) {
+            $files[] = basename($path);
         }
         sort($files);
         $stems = ItemArt::stems();
         sort($stems);
         $this->assertSame($files, $stems, 'Ship only the icons the mapper uses, and ship every icon it can return.');
+        $this->assertContains('lorc-dust-cloud.svg', $files);
+        $this->assertContains('lorc-bandage-roll.svg', $files);
 
-        foreach ($files as $stem) {
-            $svg = file_get_contents($dir.'/'.$stem.'.svg');
-            $this->assertStringNotContainsString('<script', strtolower($svg), $stem);
-            $this->assertDoesNotMatchRegularExpression('/https?:\/\/(?!www\.w3\.org\/2000\/svg)/', $svg, $stem);
+        foreach ($files as $file) {
+            $path = $dir.'/'.$file;
+            if (str_ends_with($file, '.svg')) {
+                $svg = strtolower((string) file_get_contents($path));
+                $this->assertStringNotContainsString('<script', $svg, $file);
+                $this->assertDoesNotMatchRegularExpression('/https?:\/\/(?!www\.w3\.org\/2000\/svg)/', $svg, $file);
+                continue;
+            }
+            $size = getimagesize($path);
+            $this->assertIsArray($size, $file);
+            $this->assertSame(128, $size[0], $file);
+            $this->assertSame(128, $size[1], $file);
         }
+    }
+
+    public function test_each_class_has_several_distinct_icons(): void
+    {
+        $mins = [
+            'sword' => 4, 'greatsword' => 2, 'axe' => 4, 'greataxe' => 3,
+            'mace' => 3, 'maul' => 2, 'dagger' => 3, 'spear' => 3,
+            'staff' => 3, 'wand' => 3, 'bow' => 4, 'crossbow' => 3,
+            'buckler' => 2, 'kite' => 3, 'tower' => 2,
+            'mail-head' => 3, 'mail-chest' => 3, 'mail-hands' => 3, 'mail-feet' => 3,
+            'leather-head' => 2, 'leather-chest' => 2, 'leather-hands' => 2, 'leather-feet' => 2,
+            'cloth-head' => 1, 'cloth-chest' => 2, 'cloth-hands' => 2, 'cloth-feet' => 2,
+            'ring' => 3, 'amulet' => 3,
+        ];
+        $families = ItemArt::catalog()['families'];
+        foreach ($mins as $family => $min) {
+            $icons = array_values(array_unique($families[$family]));
+            $this->assertGreaterThanOrEqual($min, count($icons), $family);
+            $this->assertSame($icons, $families[$family], $family.' lists each file once');
+        }
+        $this->assertSame(
+            ['flare-zweihander.webp', 'osare-greatsword.webp'],
+            $families['greatsword'],
+        );
+        foreach ($families['crossbow'] as $file) {
+            $this->assertStringContainsString('xbow', $file);
+        }
+    }
+
+    public function test_different_codes_spread_across_a_family(): void
+    {
+        $icons = [];
+        for ($i = 0; $i < 12; $i++) {
+            $icons[] = ItemArt::icon([
+                'code' => 'bow_'.$i,
+                'name' => 'Yew Bow',
+                'slot' => 'weapon',
+                'item_type' => 'bow',
+                'two_handed' => true,
+            ]);
+        }
+        $this->assertGreaterThanOrEqual(4, count(array_unique($icons)));
+    }
+
+    public function test_higher_rarity_leans_fancier_without_changing_the_code(): void
+    {
+        $item = ['code' => 'rusty_sword', 'name' => 'Rusty Sword', 'slot' => 'weapon', 'item_type' => 'sword', 'two_handed' => false];
+        $common = ItemArt::icon($item);
+        $legendaryItem = $item;
+        $legendaryItem['rarity'] = 'legendary';
+        $legendary = ItemArt::icon($legendaryItem);
+        $list = ItemArt::catalog()['families']['sword'];
+        $this->assertGreaterThanOrEqual(
+            array_search($common, $list, true),
+            array_search($legendary, $list, true),
+        );
+        $legendaryItem['display_name'] = 'Excalibur';
+        $this->assertSame($legendary, ItemArt::icon($legendaryItem));
     }
 
     public function test_weapon_shapes_look_like_the_weapon(): void
     {
         $catalog = ItemArt::catalog();
-        $this->assertSame(
-            ['lorc-high-shot', 'lorc-pocket-bow', 'delapouite-bow-arrow'],
-            $catalog['families']['bow'],
-        );
-        foreach ($catalog['families']['crossbow'] as $stem) {
-            $this->assertStringContainsString('crossbow', $stem);
-        }
-        foreach ($catalog['families']['greatsword'] as $stem) {
-            $this->assertStringContainsString('two-handed', $stem);
-        }
-        foreach ($catalog['families']['greataxe'] as $stem) {
-            $this->assertStringContainsString('axe', $stem);
-            $this->assertNotContains($stem, ['delapouite-hatchet', 'lorc-wood-axe', 'lorc-fire-axe']);
-        }
 
         $great = ItemArt::resolve(['code' => 'iron_greatsword', 'name' => 'Iron Greatsword', 'slot' => 'weapon', 'item_type' => 'sword', 'two_handed' => true]);
         $this->assertSame('greatsword', $great['family']);
         $this->assertFalse($great['fallback']);
-        $this->assertSame('delapouite-two-handed-sword', $great['icon']);
+        $this->assertContains($great['icon'], $catalog['families']['greatsword']);
 
         $bow = ItemArt::resolve(['code' => 'hunters_shortbow', 'name' => "Hunter's Shortbow", 'slot' => 'weapon', 'item_type' => 'bow', 'two_handed' => true]);
         $this->assertSame('bow', $bow['family']);
@@ -62,6 +116,11 @@ class ItemArtTest extends GameTestCase
 
         $mace = ItemArt::resolve(['code' => 'war_mace', 'name' => 'War Mace', 'slot' => 'weapon', 'item_type' => 'axe', 'two_handed' => false]);
         $this->assertSame('mace', $mace['family']);
+
+        $maul = ItemArt::resolve(['code' => 'oak_maul', 'name' => 'Oak Maul', 'slot' => 'weapon', 'item_type' => 'axe', 'two_handed' => true]);
+        $this->assertSame('maul', $maul['family']);
+        $hammer = ItemArt::resolve(['code' => 'war_hammer', 'name' => 'War Hammer', 'slot' => 'weapon', 'item_type' => 'axe', 'two_handed' => true]);
+        $this->assertSame('maul', $hammer['family']);
 
         $cutlass = ItemArt::resolve(['code' => 'tide_cutlass', 'name' => 'Tide Cutlass', 'slot' => 'weapon', 'item_type' => 'sword', 'two_handed' => false]);
         $this->assertSame('cutlass', $cutlass['family']);
@@ -92,18 +151,18 @@ class ItemArtTest extends GameTestCase
         $mystery = ItemArt::resolve(['name' => 'Oddment']);
         $this->assertTrue($mystery['fallback']);
         $this->assertSame('bag', $mystery['family']);
-        $this->assertSame('lorc-swap-bag', $mystery['icon']);
+        $this->assertSame('raven-backpack.webp', $mystery['icon']);
     }
 
     public function test_explicit_catalog_icon_is_kept(): void
     {
         $got = ItemArt::resolve([
-            'icon' => 'lorc-wizard-staff',
+            'icon' => 'osare-greatstaff.webp',
             'name' => 'Rusty Sword',
             'slot' => 'weapon',
             'item_type' => 'sword',
         ]);
-        $this->assertSame('lorc-wizard-staff', $got['icon']);
+        $this->assertSame('osare-greatstaff.webp', $got['icon']);
         $this->assertFalse($got['fallback']);
 
         $ignored = ItemArt::resolve([
@@ -113,7 +172,7 @@ class ItemArtTest extends GameTestCase
             'item_type' => 'sword',
         ]);
         $this->assertSame('sword', $ignored['family']);
-        $this->assertDoesNotMatchRegularExpression('/[^a-z0-9-]/', $ignored['icon']);
+        $this->assertDoesNotMatchRegularExpression('/[^a-z0-9.-]/', $ignored['icon']);
     }
 
     public function test_every_seeded_template_and_base_resolves(): void
@@ -153,7 +212,7 @@ class ItemArtTest extends GameTestCase
                 'effect_type' => $row[3],
             ]);
             $this->assertContains($icon, ItemArt::stems(), $row[1]);
-            $this->assertNotSame('lorc-swap-bag', $icon, $row[1]);
+            $this->assertNotSame('raven-backpack.webp', $icon, $row[1]);
         }
     }
 
@@ -223,10 +282,10 @@ class ItemArtTest extends GameTestCase
         $type = $item['item_type'];
         $slot = $item['slot'];
         if ($type === 'sword') {
-            return $item['two_handed'] ? ['greatsword', 'spear', 'mace'] : ['sword', 'cutlass', 'spear', 'mace'];
+            return $item['two_handed'] ? ['greatsword', 'spear', 'maul', 'greataxe'] : ['sword', 'cutlass', 'spear', 'mace'];
         }
         if ($type === 'axe') {
-            return $item['two_handed'] ? ['greataxe', 'mace', 'spear'] : ['axe', 'mace', 'greataxe'];
+            return $item['two_handed'] ? ['greataxe', 'maul', 'spear'] : ['axe', 'mace', 'greataxe'];
         }
         if ($type === 'bow') {
             return ['bow', 'crossbow'];

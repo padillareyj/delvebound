@@ -5,8 +5,8 @@ namespace App\Game;
 use RuntimeException;
 
 /**
- * Picks a local game-icons.net drawing for a piece of gear or a consumable.
- * Pure: arrays in, an icon stem out. The React UI only displays that stem.
+ * Picks a local painted icon (or an SVG fallback) for gear or a consumable.
+ * Pure: arrays in, a filename out. The React UI only displays that file.
  */
 final class ItemArt
 {
@@ -35,7 +35,7 @@ final class ItemArt
         $variants = self::catalog()['families'][$family] ?? self::catalog()['families']['bag'];
 
         return [
-            'icon' => self::pick($variants, self::stableKey($item)),
+            'icon' => self::pick($variants, self::stableKey($item), self::rarityOf($item)),
             'family' => $family,
             'fallback' => $fallback,
         ];
@@ -179,8 +179,10 @@ final class ItemArt
             $named = 'dagger';
         } elseif (self::has($text, 'spear', 'pike', 'javelin', 'lance', 'halberd', 'trident')) {
             $named = 'spear';
+        } elseif (self::has($text, 'maul')) {
+            $named = 'maul';
         } elseif (self::has($text, 'mace', 'flail', 'hammer', 'club')) {
-            $named = 'mace';
+            $named = $two ? 'maul' : 'mace';
         } elseif (self::has($text, 'greataxe', 'battleaxe')) {
             $named = 'greataxe';
         } elseif (self::has($text, 'greatsword', 'claymore', 'zweihander')) {
@@ -287,8 +289,20 @@ final class ItemArt
         return self::slotOf($item).'|'.(string) ($item['item_type'] ?? '');
     }
 
-    /** @param  list<string>  $variants */
-    private static function pick(array $variants, string $key): string
+    private static function rarityOf(array $item): string
+    {
+        $rarity = strtolower(trim((string) ($item['rarity'] ?? 'common')));
+
+        return in_array($rarity, ['common', 'uncommon', 'rare', 'epic', 'legendary'], true) ? $rarity : 'common';
+    }
+
+    /**
+     * Variants are ordered plain to fancy. Higher rarity shifts the window
+     * toward the fancy end. The same code and rarity always pick the same file.
+     *
+     * @param  list<string>  $variants
+     */
+    private static function pick(array $variants, string $key, string $rarity = 'common'): string
     {
         $variants = array_values($variants);
         $count = count($variants);
@@ -298,9 +312,17 @@ final class ItemArt
         if ($count === 1) {
             return $variants[0];
         }
+        $rank = ['common' => 0, 'uncommon' => 1, 'rare' => 2, 'epic' => 3, 'legendary' => 4][$rarity] ?? 0;
+        $span = max(2, (int) ceil($count * 0.55));
+        if ($span > $count) {
+            $span = $count;
+        }
+        $startMax = $count - $span;
+        $start = $startMax === 0 ? 0 : (int) floor($startMax * ($rank / 4));
         $n = hexdec(substr(hash('sha256', 'delvebound-item-art:'.$key), 0, 8));
+        $offset = (int) fmod((float) $n, (float) $span);
 
-        return $variants[(int) fmod((float) $n, $count)];
+        return $variants[$start + $offset];
     }
 
     private static function haystack(array $item): string
