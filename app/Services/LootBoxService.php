@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\GameException;
 use App\Game\Balance;
+use App\Game\ItemArt;
 use App\Game\Loot;
 use App\Game\Rng;
 use App\Simulation\SimRepo;
@@ -123,6 +124,7 @@ class LootBoxService
             'rarity' => $item['rarity'],
             'item_level' => $item['item_level'],
             'slot' => $item['slot'],
+            'icon' => ItemArt::icon($item),
         ];
     }
 

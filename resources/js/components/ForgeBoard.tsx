@@ -46,7 +46,7 @@ function resultDialog(result: ForgeResult): DialogOptions {
     const masterpiece = result.outcome === 'masterpiece';
     return {
         tone: masterpiece ? 'gold' : 'success',
-        icon: <ItemGlyph slot={item.slot} className={clsx('size-9', RARITY_TEXT[item.rarity])} />,
+        icon: <ItemGlyph icon={item.icon} slot={item.slot} className={clsx('size-9', RARITY_TEXT[item.rarity])} />,
         title: masterpiece ? 'The forge sings!' : 'The forge yields',
         body: (
             <>
@@ -182,7 +182,7 @@ export default function ForgeBoard({ rowVersion, gold, inventory, forgeQuote }: 
                                             onClick={() => { setSlot(picking, item.id); setPicking(null); }}
                                             className={clsx('flex w-full items-center gap-2 rounded-lg border bg-ink-900/60 px-2 py-1.5 text-left hover:brightness-125', RARITY_BORDER[item.rarity])}
                                         >
-                                            <ItemGlyph slot={item.template_slot} itemType={item.item_type} twoHanded={item.two_handed} className={clsx('size-7 shrink-0', RARITY_TEXT[item.rarity])} />
+                                            <ItemGlyph icon={item.icon} slot={item.template_slot} className={clsx('size-7 shrink-0', RARITY_TEXT[item.rarity])} />
                                             <span className="min-w-0">
                                                 <span className={clsx('block truncate text-sm font-semibold', RARITY_TEXT[item.rarity])}>{item.name}</span>
                                                 <span className="block text-[11px] capitalize text-ink-400">

@@ -28,6 +28,7 @@ interface Listing {
     mres: number;
     implicit: Record<string, number>;
     code: string | null;
+    icon: string;
     effect_type: string | null;
     effect_value: number | null;
     use_trigger: string | null;
@@ -58,15 +59,6 @@ interface Props {
     maxStack: number;
     ledger: LedgerRow[];
 }
-
-const POTION_GLYPH: Record<string, string> = {
-    heal_pct: '🧪',
-    buff_attack_pct: '💪',
-    buff_defense_pct: '🪨',
-    luck_bonus: '🍀',
-    flee_bonus: '💨',
-    cure_injury: '🩹',
-};
 
 export default function Market(props: Props) {
     const tz = useTimezone();
@@ -110,7 +102,9 @@ export default function Market(props: Props) {
                                 return (
                                     <div key={l.id} className={clsx('flex flex-col rounded-xl border border-ink-700 bg-gradient-to-b from-ink-800/70 to-ink-900 p-4', l.locked && 'opacity-50')}>
                                         <div className="flex items-start justify-between">
-                                            <span className="text-3xl">{POTION_GLYPH[l.effect_type ?? ''] ?? '🧴'}</span>
+                                            <span className="grid size-12 place-items-center rounded-lg border border-ink-700 bg-ink-950 text-lantern-300">
+                                                <ItemGlyph icon={l.icon} className="size-8" />
+                                            </span>
                                             <Gold amount={l.price} />
                                         </div>
                                         <h3 className="mt-2 font-sans text-sm font-bold tracking-normal text-ink-100">{l.name}</h3>
@@ -149,8 +143,8 @@ export default function Market(props: Props) {
                         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                             {gear.map((l) => (
                                 <div key={l.id} className={clsx('flex gap-3 rounded-xl border border-ink-700 bg-ink-900/60 p-3', l.locked && 'opacity-50')}>
-                                    <div className="grid size-12 shrink-0 place-items-center rounded-lg border border-ink-700 bg-ink-950 text-ink-100">
-                                        <ItemGlyph slot={l.slot ?? ''} itemType={l.item_type} twoHanded={l.two_handed} className="size-7" />
+                                    <div className="grid size-12 shrink-0 place-items-center rounded-lg border border-ink-600 bg-ink-950 text-rarity-common">
+                                        <ItemGlyph icon={l.icon} slot={l.slot} className="size-8" />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-start justify-between gap-2">
@@ -219,7 +213,10 @@ export default function Market(props: Props) {
                                 {props.consumables.map((c) => (
                                     <li key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-ink-700/70 bg-ink-900/40 px-3 py-2 text-sm">
                                         <div className="min-w-0">
-                                            <div className="truncate font-semibold">{POTION_GLYPH[c.effect_type] ?? '🧴'} {c.name}</div>
+                                            <div className="flex items-center gap-2 truncate font-semibold">
+                                                <ItemGlyph icon={c.icon} className="size-5 shrink-0 text-lantern-300" />
+                                                <span className="truncate">{c.name}</span>
+                                            </div>
                                             <div className="text-[11px] text-ink-400">
                                                 ×{c.quantity}{c.belt_qty > 0 && ` (${c.belt_qty} on belt)`} · <Gold amount={c.sell_price} className="text-[11px]" /> each
                                             </div>

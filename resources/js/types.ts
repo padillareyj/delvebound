@@ -96,6 +96,7 @@ export interface OpenedChestItem {
     rarity: Rarity;
     item_level: number;
     slot: string;
+    icon?: string;
 }
 
 export interface OpenedChest {
@@ -140,6 +141,7 @@ export interface Item {
     implicit: Record<string, number>;
     affixes: Affix[];
     description: string | null;
+    icon: string;
 }
 
 export interface PackItem extends Item {
@@ -172,6 +174,7 @@ export interface Consumable {
     req_level: number;
     sell_price: number;
     description: string | null;
+    icon: string;
 }
 
 export interface Derived {
@@ -287,6 +290,7 @@ export interface TripLoot {
     status: string;
     source: string;
     encounter_seq: number | null;
+    icon: string;
 }
 
 export interface Trip {

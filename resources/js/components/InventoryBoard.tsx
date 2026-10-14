@@ -127,7 +127,7 @@ export default function InventoryBoard({ rowVersion, injury, equipment, inventor
                                     item && 'hover:brightness-125',
                                 )}
                             >
-                                {item && <ItemGlyph slot={item.template_slot} itemType={item.item_type} twoHanded={item.two_handed} className="size-7" />}
+                                {item && <ItemGlyph icon={item.icon} slot={item.template_slot} className="size-8" />}
                                 {item?.two_handed && <span className="absolute right-0.5 bottom-0.5 rounded bg-ink-950/90 px-0.5 text-[8px] font-bold leading-none text-lantern-200">2H</span>}
                             </button>
                         ))}
@@ -197,7 +197,10 @@ export default function InventoryBoard({ rowVersion, injury, equipment, inventor
                                     <li key={c.id} className="rounded-lg border border-ink-700/70 bg-ink-900/40 px-3 py-2">
                                         <div className="flex items-center justify-between gap-2">
                                             <div className="min-w-0">
-                                                <div className="truncate text-sm font-semibold text-ink-100">{c.name}</div>
+                                                <div className="flex items-center gap-2 truncate text-sm font-semibold text-ink-100">
+                                                    <ItemGlyph icon={c.icon} className="size-5 shrink-0 text-lantern-300" />
+                                                    <span className="truncate">{c.name}</span>
+                                                </div>
                                                 <div className="text-[11px] text-ink-400">{effectLine(c.effect_type, c.effect_value)} · own {c.quantity}</div>
                                             </div>
                                             {!manual && (
@@ -266,7 +269,7 @@ function EquipSlot({ name, item, active, onClick, onHover }: {
                 active && 'ring-2 ring-lantern-400',
             )}
         >
-            <ItemGlyph slot={item?.template_slot ?? name} itemType={item?.item_type} twoHanded={item?.two_handed} className={clsx('size-7', !item && 'opacity-40')} />
+            <ItemGlyph icon={item?.icon} slot={item?.template_slot ?? name} className={clsx('size-8', !item && 'opacity-40')} />
             {item?.two_handed && <span className="absolute right-0.5 bottom-0.5 rounded bg-ink-950/90 px-0.5 text-[8px] font-bold leading-none text-lantern-200">2H</span>}
         </button>
     );

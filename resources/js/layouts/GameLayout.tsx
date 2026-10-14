@@ -340,8 +340,17 @@ export default function GameLayout({ children }: { children: ReactNode }) {
 
             <MobileNav items={NAV} url={url} />
 
-            <footer className="hidden border-t border-ink-800 py-4 text-center text-xs text-ink-500 xl:block">
-                <Swords className="mr-1 inline size-3" /> Delvebound · expeditions depart when the keeper of Lanternford rings the bell
+            <footer className="border-t border-ink-800 px-4 py-4 pb-24 text-center text-xs text-ink-500 xl:pb-4">
+                <p>
+                    <Swords className="mr-1 inline size-3" /> Delvebound · expeditions depart when the keeper of Lanternford rings the bell
+                </p>
+                <p className="mt-1">
+                    <Link href="/credits" className="underline decoration-ink-700 underline-offset-2 hover:text-lantern-200">
+                        Item art by Clint Bellanger, Justin Nichol, Blarumyrran, Ravenmore, Scrittl, and Kit
+                    </Link>
+                    <span className="mx-1.5 text-ink-700">·</span>
+                    CC0 and CC BY 3.0
+                </p>
             </footer>
             <Toasts />
             <GameDialog />

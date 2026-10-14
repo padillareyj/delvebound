@@ -226,4 +226,20 @@
     .text-shadow-glow {
         text-shadow: var(--title-shadow);
     }
+    .item-art {
+        display: inline-block;
+        background-color: currentColor;
+        mask-mode: alpha;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+    }
+    .item-art-raster {
+        display: inline-block;
+        object-fit: contain;
+        filter: drop-shadow(0 0 2px currentColor);
+    }
 }

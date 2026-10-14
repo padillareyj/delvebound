@@ -1465,6 +1465,24 @@ The Wilds has 16 (12 regular + 4 bosses). The Salt Marches and the Ashen Crown a
 **[T]**. A new human picks the weapon on the sign-up form. Bots get the weapon matching their
 `preferred_scaling`.
 
+**Item art.** `App\Game\ItemArt` chooses a drawing from `resources/item-art/catalog.json`. The inputs
+are the template slot, item type, two-handed flag, and name keywords on the code and template name (a
+bow stays a bow; a two-handed sword, axe, or maul uses a two-handed drawing). When a family has several
+icons, the file is a stable hash of the template code (otherwise the template name) into a window of
+that list. The list runs plain to fancy, and a higher rarity shifts the window toward the fancy end, so
+the same code always looks the same and a legendary of that code is never plainer than the common.
+Changing the display name (affixes, legendary titles) does not change the icon. An `item_templates.icon`
+value is used only when it names a catalog file. Empty slots fall back by slot; anything else falls
+back to a backpack. Painted icons keep their colors; the rarity color is a glow and a frame. Two supply
+drawings (smoke, bandage) stay SVGs and are tinted with the rarity color. Files live in
+`public/item-art/` (128×128 WebP, plus those two SVGs) and are served at `/item-art/`. Sources are Flare
+weapon icons 2, Flare armor by equipment slot, and OSARE weapon icons (CC0; Clint Bellanger, Justin
+Nichol, Blarumyrran), Kit's 2D RPG item icons (CC0), Ravenmore's Fantasy Icon Pack 2.0 and Scrittl's
+painterly weapon and armor icons (CC BY 3.0), and Lorc's game-icons.net drawings for the two SVGs
+(CC BY 3.0). Do not put them under `/icons/`: Ubuntu's Apache aliases that path to
+`/usr/share/apache2/icons/`, so `public/icons/` is never reached. The footer and `/credits` name the
+authors. The React UI displays the filename; it does not re-implement the keyword rules.
+
 ### 7.4 Affixes (15)
 
 | Code | Name | Kind | Stat | Groups | Min ilvl | Weight | Min base | Max base | Per ilvl |
@@ -1937,8 +1955,8 @@ Sunken Crypt (Lv 6–9), Town.
   "boss": {"met": true, "killed": true, "code": "bone_lord"},
   "hp_start": 262, "hp_end": 64, "hp_end_pct": 24,
   "xp": 2330, "gold": 241, "level_before": 8, "level_after": 9,
-  "items": [{"id": 1201, "rarity": "uncommon"}, {"id": 1202, "rarity": "common"},
-            {"id": 1203, "rarity": "rare"}, {"id": 1204, "rarity": "uncommon"}],
+  "items": [{"name": "Heavy Iron Longsword of the Bear", "rarity": "uncommon", "slot": "weapon",
+             "item_type": "sword", "two_handed": false, "code": "iron_longsword", "icon": "scrittl-sword-long-4.webp"}],
   "lost_items": [], "injury": {"severity": 0, "runs_left": 0},
   "consumables_used": [{"code": "healing_potion", "qty": 1}, {"code": "stoneskin_tonic", "qty": 1}]
 }
@@ -2134,6 +2152,7 @@ and Inertia swaps the page in place. The HTTP side uses the default `mysql` conn
 | `/bots` | `Bots` | bot characters, their `bot_profiles` flavour text, recent `bot_decisions` | – |
 | `/arena` | `Arena` | own signup, waiting humans, every active bot (they always enter), the latest bracket and its logs, past champions | `POST /arena/enter` signs the session's character up; `DELETE /arena/enter` withdraws. There is no "start the arena" button |
 | `/runs` | `Runs` | `simulation_runs` history, outcome counts per run | – (admin only; there is no "Run now" button) |
+| `/credits` | `Credits` | static attribution for the item drawings (public; no login) | – |
 | `/admin` | `admin/Index` | all `item_templates` plus loot/shop usage | – (admin only) |
 | `/admin/gear/create`, `/admin/gear/{id}/edit` | `admin/GearForm` | one template, loot tables, shop listing | `POST /admin/gear`, `PUT /admin/gear/{id}`, `DELETE /admin/gear/{id}` (admin + `run.guard`). Writes `item_templates`, `loot_table_entries`, and `shop_listings`. Live DB only — not written back to seed SQL. Already-dropped `item_instances` keep rolled power/armor/mres; implicits follow the template. |
 
@@ -2222,7 +2241,7 @@ application.
 ├── .env.example               # copy to .env (never committed)
 ├── artisan  composer.json  package.json  vite.config.ts  tsconfig.json
 ├── app/
-│   ├── Game/                  # pure rules/formulas/combat/loot/bots (section 10.1); ItemTemplates authoring
+│   ├── Game/                  # pure rules/formulas/combat/loot/bots (section 10.1); ItemArt, ItemTemplates authoring
 │   ├── Simulation/            # delve:run and delve:arena pipelines + all simulation SQL
 │   ├── Console/Commands/      # delve:run, delve:arena, delve:balance-lab, delve:check-content, delve:create-account, delve:make-admin
 │   ├── Http/Controllers/  Http/Middleware/
@@ -2242,8 +2261,10 @@ application.
 │   └── sql/                   # bootstrap.sql, grants_web.sql (run once as MySQL root), check_content.sql
 ├── public/                    # Apache DocumentRoot → http://delvebound.host
 │   ├── index.php  .htaccess   # Laravel front controller
-│   └── build/                 # Vite output (npm run build)
+│   ├── build/                 # Vite output (npm run build)
+│   └── item-art/              # painted WebP icons, two SVG fallbacks, CREDITS.md; URL /item-art/ (not /icons/)
 ├── resources/
+│   ├── item-art/catalog.json  # icon families, slot fallbacks, consumable stems
 │   ├── js/                    # app.tsx, pages/, components/, layouts/, lib/, types/
 │   ├── css/app.css            # Tailwind 4 + the Delvebound theme
 │   └── views/app.blade.php    # the single HTML shell Inertia mounts into
@@ -2529,6 +2550,8 @@ Python `sim/` and the old `src/`, `templates/`, `bin/` folders removed.
 | 30 | **Premium store with play money (§16).** Every character, bots and newcomers included, starts with **$100.00** (`premium.starting_cash_cents`). Titles, wings, auras, pets, and frames add bonus stats and power. Every **active** owned piece counts; one piece per category is equipped for the look (§16.3, collection tab on the Hero page). Gold bundles turn dollars into gold. There is no real payment and no way to earn more dollars in v1. Bots buy at most one piece per run with a fixed rule; auto-mode humans never spend dollars. | Rey wanted the mobile-RPG "HP bonus / attack bonus" feel and cosmetics everyone, bots included, can show off. | Rey |
 | 31 | **Mobile-style bonus layer.** Percent bonuses (`hp_pct`, `attack_pct`, `defense_pct`) after the flat sums, plus four new stats: lifesteal, armor pierce, damage reduction, and XP bonus. Only bonus sources set them, not gear. The arena now applies the same bonus map as trips, so skills and the horcrux count in duels too. | One bonus path for trips, arena, the best-map preview, and the sheet. The arena leaving out skills and the horcrux was an oversight. | Rey + design |
 | 32 | **The forge combines two pieces.** Same template slot, both unequipped. Gold is spent either way. The attempt cracks (both destroyed), yields a new piece at the better rarity, or sings (one tier higher, or a stronger legendary). Odds improve with the lower piece's rarity and with LUK. The website shows `Forge::quote`. Bots do not forge. | A gold sink that can fail or turn two spare pieces into something finer, without a recipe list. | Rey |
+| 33 | **Item drawings come from game-icons.net.** `ItemArt` maps slot, weapon class, handedness, and name keywords to a local SVG. The site tints it with the rarity color. Files live in the repo (CC BY 3.0). The footer and `/credits` attribute Lorc, Delapouite, Skoll, and Carl Olsen. | Gear had no pictures. The mapping stays stable when affixes and legendary titles change the display name. | Rey |
+| 34 | **Painted item icons replace the game-icons.net set.** Weapons, armor, shields, jewelry, and potions are 128×128 WebP from Flare, OSARE, Ravenmore, Scrittl, and Kit (CC0 or CC BY 3.0). No commercial-game rips. Each class keeps several icons where the packs have them; `ItemArt` hashes the template code into a plain-to-fancy window that shifts with rarity. A two-handed weapon still uses a two-handed drawing. Smoke and bandage stay SVG fallbacks. The rarity color glows a painting instead of masking it into a silhouette. | The silhouette set read as line art. Painted icons should differ from bow to bow and still match the weapon in hand. | Rey |
 
 ---
 
