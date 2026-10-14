@@ -1471,7 +1471,9 @@ bow stays a bow; a two-handed sword uses the two-handed sword). The same templat
 drawing, including when the display name is an affix title or a legendary name. An `item_templates.icon`
 value is used only when it names a catalog stem. Empty slots fall back by slot; anything else falls
 back to a bag. The website tints the SVG with the rarity color variables. Files live in
-`public/icons/items/` (game-icons.net, CC BY 3.0). The footer and `/credits` name Lorc, Delapouite,
+`public/item-art/` and are served at `/item-art/` (game-icons.net, CC BY 3.0). Do not put them under
+`/icons/`: Ubuntu's Apache aliases that path to `/usr/share/apache2/icons/`, so `public/icons/` is never
+reached. The footer and `/credits` name Lorc, Delapouite,
 Skoll, and Carl Olsen. The React UI displays the stem; it does not re-implement the keyword rules.
 
 ### 7.4 Affixes (15)
@@ -2253,7 +2255,7 @@ application.
 ├── public/                    # Apache DocumentRoot → http://delvebound.host
 │   ├── index.php  .htaccess   # Laravel front controller
 │   ├── build/                 # Vite output (npm run build)
-│   └── icons/items/           # local game-icons.net SVGs + CREDITS.md (CC BY 3.0)
+│   └── item-art/              # local game-icons.net SVGs + CREDITS.md, URL /item-art/ (not /icons/)
 ├── resources/
 │   ├── item-art/catalog.json  # icon families, slot fallbacks, consumable stems
 │   ├── js/                    # app.tsx, pages/, components/, layouts/, lib/, types/

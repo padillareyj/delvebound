@@ -2,7 +2,7 @@
 
 Gear and consumable drawings in this directory are SVG icons from [game-icons.net](https://game-icons.net/), used under the [Creative Commons Attribution 3.0 Unported](https://creativecommons.org/licenses/by/3.0/) license.
 
-They are stored in the repository and served by this site. The game does not load them from a CDN.
+They are stored in the repository and served by this site at `/item-art/`. The game does not load them from a CDN.
 
 No changes were made to the drawings themselves. Filenames are prefixed with the author's game-icons.net id so each file stays unique.
 

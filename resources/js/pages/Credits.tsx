@@ -37,7 +37,7 @@ export default function Credits() {
             </ul>
             <p className="mt-6 text-sm text-ink-300">
                 The drawings themselves are unchanged. A full file list is in{' '}
-                <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="/icons/items/CREDITS.md">the icon credits file</a>.
+                <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="/item-art/CREDITS.md">the icon credits file</a>.
             </p>
         </>
     );

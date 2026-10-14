@@ -15,7 +15,7 @@ export function ItemGlyph({
     className?: string;
 }) {
     const id = glyphIcon(icon, slot);
-    const url = `url("/icons/items/${id}.svg")`;
+    const url = `url("/item-art/${id}.svg")`;
     return (
         <span
             aria-hidden

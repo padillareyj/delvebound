@@ -9,7 +9,7 @@ class ItemArtTest extends GameTestCase
 {
     public function test_catalog_matches_the_svg_files_on_disk(): void
     {
-        $dir = dirname(__DIR__, 2).'/public/icons/items';
+        $dir = dirname(__DIR__, 2).'/public/item-art';
         $files = [];
         foreach (glob($dir.'/*.svg') as $path) {
             $files[] = basename($path, '.svg');
