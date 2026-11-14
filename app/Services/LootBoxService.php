@@ -141,6 +141,7 @@ class LootBoxService
             'armor' => $item['armor'],
             'mres' => $item['mres'],
             'sell_value' => $item['sell_value'],
+            'card_slots' => (int) ($item['card_slots'] ?? 0),
             'source' => 'chest',
             'created_trip_id' => $tripId,
         ]);

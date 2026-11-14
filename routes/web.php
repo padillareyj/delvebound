@@ -2,14 +2,19 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CardController;
 use App\Http\Controllers\GameController;
 use App\Http\Controllers\MarketController;
+use App\Http\Controllers\DailyController;
 use App\Http\Controllers\PremiumController;
 use Illuminate\Support\Facades\Route;
 
 // There is deliberately no route that starts a simulation run (DESIGN.md §14, decision 4).
 
 Route::get('/credits', [GameController::class, 'credits'])->name('credits');
+Route::get('/trips/{id}', [GameController::class, 'trip'])->whereNumber('id')->name('trip');
+Route::get('/leaderboard', [GameController::class, 'leaderboard'])->name('leaderboard');
+Route::get('/leaderboard/{id}', [GameController::class, 'adventurer'])->whereNumber('id')->name('leaderboard.show');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -28,12 +33,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/pack', [GameController::class, 'pack'])->name('pack');
     Route::get('/market', [MarketController::class, 'index'])->name('market');
     Route::get('/premium', [PremiumController::class, 'index'])->name('premium');
+    Route::get('/quests', [DailyController::class, 'index'])->name('quests');
     Route::get('/map', [GameController::class, 'map'])->name('map');
     Route::get('/mail', [GameController::class, 'mail'])->name('mail');
     Route::get('/mail/{id}', [GameController::class, 'mailShow'])->whereNumber('id')->name('mail.show');
-    Route::get('/trips/{id}', [GameController::class, 'trip'])->whereNumber('id')->name('trip');
-    Route::get('/leaderboard', [GameController::class, 'leaderboard'])->name('leaderboard');
-    Route::get('/leaderboard/{id}', [GameController::class, 'adventurer'])->whereNumber('id')->name('leaderboard.show');
     Route::get('/bots', [GameController::class, 'bots'])->name('bots');
     Route::get('/arena', [GameController::class, 'arena'])->name('arena');
     Route::get('/account', [GameController::class, 'account'])->name('account');
@@ -54,6 +57,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('run.guard')->group(function () {
         Route::post('/character/points', [GameController::class, 'spendPoints']);
         Route::post('/character/prep', [GameController::class, 'prep']);
+        Route::post('/character/look', [GameController::class, 'look']);
         Route::post('/character/respec', [GameController::class, 'respec']);
         Route::post('/character/skills/{code}', [GameController::class, 'trainSkill'])->where('code', '[a-z_]+');
         Route::post('/character/horcrux', [GameController::class, 'feedHorcrux']);
@@ -65,6 +69,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/pack/chests/{id}/open', [GameController::class, 'openChest'])->whereNumber('id');
         Route::post('/pack/forge', [GameController::class, 'forge']);
 
+        Route::post('/character/cards/insert', [CardController::class, 'insert']);
+        Route::post('/character/cards/remove', [CardController::class, 'remove']);
+        Route::post('/character/cards/sell', [CardController::class, 'sell']);
+
         Route::post('/market/buy', [MarketController::class, 'buy']);
         Route::post('/market/sell-item', [MarketController::class, 'sellItem']);
         Route::post('/market/sell-consumable', [MarketController::class, 'sellConsumable']);
@@ -74,6 +82,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/premium/take-off', [PremiumController::class, 'takeOff']);
         Route::post('/premium/activate', [PremiumController::class, 'activate']);
         Route::post('/premium/activate-all', [PremiumController::class, 'activateAll']);
+
+        Route::post('/quests/claim', [DailyController::class, 'claimQuest']);
+        Route::post('/quests/chest', [DailyController::class, 'claimChest']);
+        Route::post('/quests/jewel', [DailyController::class, 'raiseJewel']);
+        Route::post('/quests/excellency', [DailyController::class, 'raiseExcellency']);
+        Route::post('/quests/wing', [DailyController::class, 'raiseWing']);
+        Route::post('/quests/sigil', [DailyController::class, 'raiseSigil']);
+        Route::post('/quests/nexus', [DailyController::class, 'raiseNexus']);
 
         Route::post('/map/order', [GameController::class, 'order']);
         Route::delete('/map/order', [GameController::class, 'cancelOrder']);

@@ -135,7 +135,7 @@ final class Premium
         $total = [];
         foreach ($gear as $row) {
             foreach ((array) ($row['bonuses'] ?? []) as $key => $value) {
-                if (in_array($key, Stats::BONUS_KEYS, true)) {
+                if (in_array($key, Stats::bonusKeys(), true)) {
                     $total[$key] = ($total[$key] ?? 0.0) + (float) $value;
                 }
             }
@@ -154,12 +154,19 @@ final class Premium
         return $total;
     }
 
-    /** Skills + horcrux + premium: the bonus array Stats::derived takes. */
+    /** Skills + horcrux + premium + systems: the bonus array Stats::derived takes. */
     public static function combinedBonus(array $char, array $balance): array
     {
+        $systems = $char['systems'] ?? null;
+        if (! is_array($systems) || ! isset($systems['jewels'])) {
+            $systems = Systems::state($systems, $balance);
+        }
+
         return Stats::mergeBonus(
             Growth::bonuses($char['skills'] ?? [], (int) ($char['horcrux']['tier'] ?? 0), $balance),
             self::bonuses($char['premium']['boosts'] ?? []),
+            Systems::bonuses($systems, $balance),
+            Cards::bonusesFromEquipment($char['equipment'] ?? []),
         );
     }
 

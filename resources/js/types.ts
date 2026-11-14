@@ -119,6 +119,18 @@ export interface Affix {
     kind: 'prefix' | 'suffix';
 }
 
+export interface SocketedCard {
+    id: number;
+    display_name: string;
+    rarity: Rarity;
+    item_level: number;
+    bonuses: Record<string, number>;
+    sell_value: number;
+    monster_code: string | null;
+    source: string;
+    status: string;
+}
+
 export interface Item {
     id: number;
     name: string;
@@ -137,6 +149,8 @@ export interface Item {
     armor: number;
     mres: number;
     sell_value: number;
+    card_slots: number;
+    cards: Array<SocketedCard | null>;
     source: string;
     implicit: Record<string, number>;
     affixes: Affix[];
@@ -177,6 +191,35 @@ export interface Consumable {
     icon: string;
 }
 
+export type ElementCode = 'fire' | 'water' | 'thunder' | 'earth' | 'wind';
+
+export interface ElementSheet {
+    atk: number;
+    atk_min: number;
+    atk_max: number;
+    def: number;
+    def_min: number;
+    def_max: number;
+    resistance: number;
+    reduce_res: number;
+    penetration: number;
+    crit_pct: number;
+    crit_res_pct: number;
+    crit_bonus_pct: number;
+    crit_decrease_pct: number;
+    lucky_strike_pct: number;
+    lucky_resist_pct: number;
+    dmg_addition: number;
+    dmg_bonus_pct: number;
+    def_ignoring_pct: number;
+    dmg_res_pct: number;
+}
+
+export interface AdvancedSheet {
+    global: Record<string, number>;
+    elements: Record<ElementCode, ElementSheet>;
+}
+
 export interface Derived {
     hp: number;
     attack: number;
@@ -194,6 +237,7 @@ export interface Derived {
     dmg_reduction?: number;
     xp_mult?: number;
     damage_type: 'physical' | 'magic';
+    advanced?: AdvancedSheet;
 }
 
 export interface NextDestination {
@@ -293,9 +337,20 @@ export interface TripLoot {
     icon: string;
 }
 
+export interface TripGear {
+    id: number;
+    name: string;
+    code: string;
+    slot: string;
+    two_handed: boolean;
+    icon: string;
+}
+
 export interface Trip {
     id: number;
     run_id: number;
+    character_id: number;
+    is_bot: boolean;
     hero: string;
     place: { name: string; code: string; type: string; rec: [number, number] };
     outcome: Outcome;
@@ -311,10 +366,27 @@ export interface Trip {
     boss_killed: boolean;
     created_at: string;
     derived: Derived | null;
+    /** Weapon/off-hand carried on the trip (from the stored snapshot), for the 3D replay. */
+    equipment?: Record<string, TripGear>;
+    /** The hero's cosmetic look (characters.look) for the 3D replay; null = weapon-based default. */
+    look?: HeroLook | null;
     buffs: string[];
     consumables_used: Record<string, number> | unknown[];
     encounters: Encounter[];
     loot: TripLoot[];
     chest: { status: 'sealed' | 'opened'; rolls: number } | null;
     mail_id: number | null;
+}
+
+/** Cosmetic hero look (characters.look). Drawn by the 3D preview and replay only; never affects stats. */
+export interface HeroLook {
+    gender: 'male' | 'female';
+    race: 'human' | 'elf' | 'dwarf' | 'orc' | 'undead';
+    skin: string;
+    hair: 'none' | 'simple_parted' | 'buzzed' | 'buzzed_female' | 'long' | 'buns';
+    hair_color: string | null;
+    beard: boolean;
+    outfit: 'peasant' | 'ranger' | 'ranger_hooded';
+    height: number;
+    build: number;
 }

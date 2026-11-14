@@ -60,7 +60,9 @@ class GameController extends Controller
 
     public function trip(Request $request, int $id): Response
     {
-        return Inertia::render('Trip', ['trip' => $this->queries->trip($this->accountId($request), $id)]);
+        $accountId = $request->user() === null ? null : (int) $request->user()->id;
+
+        return Inertia::render('Trip', ['trip' => $this->queries->trip($accountId, $id)]);
     }
 
     public function leaderboard(Request $request): Response
@@ -156,6 +158,15 @@ class GameController extends Controller
             : 'Expedition settings saved.';
 
         return back()->with('success', $saved);
+    }
+
+    /** Cosmetic hero look only (characters.look); never read by stats or the simulation. */
+    public function look(Request $request): RedirectResponse
+    {
+        $data = $request->validate(\App\Services\HeroLook::rules());
+        $this->characters->updateLook($this->accountId($request), $this->version($request), \App\Services\HeroLook::normalize($data));
+
+        return back()->with('success', 'Your new look is saved.');
     }
 
     public function respec(Request $request): RedirectResponse

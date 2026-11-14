@@ -37,5 +37,10 @@ class DatabaseSeeder extends Seeder
             DB::table('schema_migrations')->insertOrIgnore(['version' => 'seed:012_later_maps.sql']);
             $this->command?->info('seed  012_later_maps.sql');
         }
+        if (! DB::table('material_templates')->where('code', 'jewel_dust')->exists()) {
+            DB::unprepared(file_get_contents(database_path('seeders/sql/060_daily_systems.sql')));
+            DB::table('schema_migrations')->insertOrIgnore(['version' => 'seed:060_daily_systems.sql']);
+            $this->command?->info('seed  060_daily_systems.sql');
+        }
     }
 }

@@ -43,9 +43,24 @@ export default function Credits() {
                     <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/2d-rpg-item-icons" rel="noreferrer">2D RPG item icons</a>
                     {' '}— Kit.
                 </li>
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://kaylousberg.itch.io/kaykit-adventurers" rel="noreferrer">KayKit Adventurers Character Pack 1.0</a>
+                    {' '}— Kay Lousberg. Staff, wand, and crossbow in the 3D hero preview (and the older chibi preview set).
+                </li>
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://quaternius.com" rel="noreferrer">Quaternius</a>
+                    {' '}— 3D hero preview characters, hair, idle animations, weapons, and shields from the Modular Character Outfits – Fantasy,
+                    Universal Base Characters, Universal Animation Library, and Lowpoly Medieval Weapons packs; battle-replay monsters from the
+                    Ultimate Monsters, Animated Enemies, and Animated Animal packs (via poly.pizza).
+                </li>
             </ul>
             <h2 className="mt-8 text-lg font-bold text-ink-100">CC BY 3.0</h2>
             <ul className="mt-2 space-y-2 text-sm text-ink-200">
+                <li>
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://poly.pizza/m/xqEzosAVYX" rel="noreferrer">Zombie</a>
+                    {' '}by bachosoftdesign (via poly.pizza) — battle-replay zombie, ghoul, and drowned monsters. Licensed{' '}
+                    <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://creativecommons.org/licenses/by/3.0/" rel="noreferrer">CC BY 3.0</a>; optimized for the web.
+                </li>
                 <li>
                     <a className="text-lantern-200 underline decoration-ink-700 underline-offset-2" href="https://opengameart.org/content/fantasy-icon-pack-by-ravenmore-0" rel="noreferrer">Fantasy Icon Pack 2.0</a>
                     {' '}— Ravenmore. Creative Commons Attribution 3.0.

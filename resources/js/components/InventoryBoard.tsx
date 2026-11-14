@@ -127,7 +127,7 @@ export default function InventoryBoard({ rowVersion, injury, equipment, inventor
                                     item && 'hover:brightness-125',
                                 )}
                             >
-                                {item && <ItemGlyph icon={item.icon} slot={item.template_slot} className="size-8" />}
+                                {item && <ItemGlyph icon={item.icon} slot={item.template_slot} className="size-[88%]" />}
                                 {item?.two_handed && <span className="absolute right-0.5 bottom-0.5 rounded bg-ink-950/90 px-0.5 text-[8px] font-bold leading-none text-lantern-200">2H</span>}
                             </button>
                         ))}
@@ -269,7 +269,7 @@ function EquipSlot({ name, item, active, onClick, onHover }: {
                 active && 'ring-2 ring-lantern-400',
             )}
         >
-            <ItemGlyph icon={item?.icon} slot={item?.template_slot ?? name} className={clsx('size-8', !item && 'opacity-40')} />
+            <ItemGlyph icon={item?.icon} slot={item?.template_slot ?? name} className={clsx('size-[88%]', !item && 'opacity-40')} />
             {item?.two_handed && <span className="absolute right-0.5 bottom-0.5 rounded bg-ink-950/90 px-0.5 text-[8px] font-bold leading-none text-lantern-200">2H</span>}
         </button>
     );

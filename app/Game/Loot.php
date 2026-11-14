@@ -284,7 +284,7 @@ final class Loot
         ];
     }
 
-    public static function buildInstance(array $template, int $ilvl, array $rarity, array $affixes, string $source, array $balance, array $legendaryNames = [], ?Rng $rng = null): array
+    public static function buildInstance(array $template, int $ilvl, array $rarity, array $affixes, string $source, array $balance, array $legendaryNames = [], ?Rng $rng = null, float $luckFactor = 0.0): array
     {
         [$power, $armor, $mres] = self::scaleBases($template, $rarity, $ilvl, $balance);
         $baseValue = (int) ($template['base_value'] ?? 1);
@@ -295,6 +295,10 @@ final class Loot
                 $display = $legendary;
             }
         }
+        $rollSlots = $rng !== null && ! in_array($source, ['shop', 'starter'], true);
+        $cardSlots = $rollSlots
+            ? Cards::rollSlots($rarity['name'], $luckFactor, $balance, $rng)
+            : 0;
 
         return [
             'id' => null,
@@ -317,6 +321,8 @@ final class Loot
             'item_level' => $ilvl,
             'display_name' => $display,
             'sell_value' => self::sellValue($baseValue, (float) $rarity['value_mult'], $ilvl, $balance),
+            'card_slots' => $cardSlots,
+            'cards' => array_fill(0, $cardSlots, null),
             'source' => $source,
             'status' => 'owned',
         ];
@@ -329,7 +335,7 @@ final class Loot
         $rarity = self::rollRarity($balance, $luckFactor, $rng, $minRarity);
         $affixes = self::rollAffixes($affixPool, $template, $ilvl, (int) $rarity['affixes'], $rng, $balance, $rarity['name'] === 'legendary');
 
-        return self::buildInstance($template, $ilvl, $rarity, $affixes, $source, $balance, $legendaryNames, $rng);
+        return self::buildInstance($template, $ilvl, $rarity, $affixes, $source, $balance, $legendaryNames, $rng, $luckFactor);
     }
 
     public static function tryDrop(?array $monster, ?array $table, int $charLuk, float $luckFactor, array $place, array $affixPool, Rng $rng, array $balance, bool $boss = false, bool $chest = false, array $legendaryNames = []): ?array

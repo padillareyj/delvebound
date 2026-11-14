@@ -2,9 +2,12 @@
 
 namespace App\Game\Bots;
 
+use App\Game\Cards;
+use App\Game\Daily;
 use App\Game\Growth;
 use App\Game\Premium;
 use App\Game\Rng;
+use App\Game\Systems;
 
 /** One bot's full decision for a run (DESIGN.md §8.2). Pure: state + world in, decision out. */
 final class BotPlanner
@@ -17,6 +20,7 @@ final class BotPlanner
         $memory = Memory::read($state['reports'] ?? [], $state['profile'], (int) $state['level'], $balance);
         $points = Allocation::allocate($state, $rng, $balance);
         Gear::equipBest($state, $balance);
+        $cardSockets = ($state['is_bot'] ?? false) ? Cards::botSocket($state, $balance) : [];
         $trained = Growth::botTrain($state, $balance);
         $fed = Growth::botFeed($state, $balance);
         $premiumBefore = $state['premium'] ?? null;
@@ -28,6 +32,40 @@ final class BotPlanner
             || ($premiumBefore['equipped'] ?? []) !== $state['premium']['equipped']
             || ($premiumBefore['active'] ?? []) !== $state['premium']['active']
         );
+
+        $bag = [];
+        foreach ($state['materials'] ?? [] as $mat) {
+            if ((int) ($mat['qty'] ?? 0) > 0) {
+                $bag[$mat['code']] = (int) $mat['qty'];
+            }
+        }
+        $day = Daily::dayKey(new \DateTimeImmutable('now', new \DateTimeZone('UTC')), $balance['daily']['timezone']);
+        $daily = Daily::state($state['daily'] ?? null, $day, $balance);
+        Daily::markLogin($daily);
+        $dailyClaimed = ($state['is_bot'] ?? false) ? Daily::claimAll($daily, $bag, $balance) : [];
+        $systems = Systems::state($state['systems'] ?? null, $balance);
+        $systemsUpgraded = ($state['is_bot'] ?? false) ? Systems::botUpgrade($systems, $bag, $balance) : [];
+        foreach ($state['materials'] ?? [] as $i => $mat) {
+            $state['materials'][$i]['qty'] = (int) ($bag[$mat['code']] ?? 0);
+        }
+        foreach ($bag as $code => $qty) {
+            if ($qty <= 0) {
+                continue;
+            }
+            $found = false;
+            foreach ($state['materials'] ?? [] as $mat) {
+                if ($mat['code'] === $code) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (! $found) {
+                $state['materials'][] = ['code' => $code, 'kind' => 'system', 'qty' => $qty, 'name' => $code, 'glyph' => '', 'description' => ''];
+            }
+        }
+        $state['daily'] = $daily;
+        $state['systems'] = $systems;
+
         $sold = Gear::sellJunk($state, $balance);
         $place = Destination::choose($state, $places, $memory, $rng, $balance);
         $bought = Shopping::shopStep($state, $place, $shop, $balance);
@@ -64,6 +102,11 @@ final class BotPlanner
             'premium' => $state['premium'] ?? null,
             'premium_bought' => $premiumBought,
             'premium_changed' => $premiumChanged,
+            'daily' => $daily,
+            'systems' => $systems,
+            'daily_claimed' => $dailyClaimed,
+            'systems_upgraded' => $systemsUpgraded,
+            'card_sockets' => $cardSockets,
             'why' => [
                 'memory_blocked' => $memory['blocked'],
                 'step_up' => $memory['step_up'],
@@ -72,6 +115,9 @@ final class BotPlanner
                 'place_mode' => ($state['auto_place'] ?? 'profile') === 'best' ? 'best' : 'profile',
                 'trained' => $trained,
                 'fed' => count($fed),
+                'daily_claimed' => count($dailyClaimed),
+                'systems_upgraded' => count($systemsUpgraded),
+                'card_sockets' => count($cardSockets),
             ],
         ];
     }

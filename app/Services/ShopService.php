@@ -46,6 +46,7 @@ class ShopService
             'armor' => $item['armor'],
             'mres' => $item['mres'],
             'sell_value' => $item['sell_value'],
+            'card_slots' => (int) ($item['card_slots'] ?? 0),
             'source' => $source,
         ]);
     }
@@ -120,6 +121,7 @@ class ShopService
                 throw new GameException('Unequip it before selling.');
             }
             $payout = (int) $item->sell_value;
+            app(CardService::class)->destroyOnItem($itemId);
             DB::table('item_instances')->where('id', $itemId)->update(['status' => 'sold', 'character_id' => null]);
             DB::table('characters')->where('id', $cid)->update(['gold' => DB::raw('gold + '.$payout), 'row_version' => DB::raw('row_version + 1')]);
             self::ledger($cid, 'sell', null, $itemId, null, 1, $payout, (int) $char['gold'] + $payout);

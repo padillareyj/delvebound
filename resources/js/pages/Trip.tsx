@@ -1,12 +1,15 @@
 import { Head, Link } from '@inertiajs/react';
 import clsx from 'clsx';
-import { ChevronLeft, ChevronsRight, Crown, FastForward, Mail, Pause, Play, RotateCcw, SkipForward, Skull, StepForward } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, ChevronLeft, ChevronsRight, Crown, FastForward, LayoutGrid, Mail, Pause, Play, RotateCcw, SkipForward, Skull, StepForward } from 'lucide-react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ItemGlyph } from '@/components/ItemGlyph';
 import { RarityName } from '@/components/ItemCard';
 import { Bar, Gold, OutcomeChip, Panel } from '@/components/ui';
 import { OUTCOME_META, PLACE_ICONS, RARITY_TEXT, formatDateTime, useTimezone } from '@/lib/format';
 import type { Encounter, LogEvent, Trip, Unit } from '@/types';
+import type { Cue } from '@/components/CharacterModel';
+
+const BattleReplay3D = lazy(() => import('@/components/BattleReplay3D'));
 
 const HERO = '__hero__';
 const SPEEDS = [1, 2, 4] as const;
@@ -111,6 +114,7 @@ export default function TripPage({ trip }: { trip: Trip }) {
     const [finished, setFinished] = useState(encounters.length === 0);
     const [popups, setPopups] = useState<Popup[]>([]);
     const [anims, setAnims] = useState<Record<string, Anim>>({});
+    const [view3d, setView3d] = useState(true);
     const popupId = useRef(1);
     const logRef = useRef<HTMLDivElement>(null);
 
@@ -211,13 +215,23 @@ export default function TripPage({ trip }: { trip: Trip }) {
     const leveled = trip.level_after > trip.level_before;
     const liveMonsters = current?.units ?? [];
     const heroPct = frame ? frame.hero / trip.max_hp : 1;
+    const cueOf = (unit: string, hp: number): Cue => {
+        if (hp <= 0) return { kind: 'death', n: 0 };
+        const a = anims[unit];
+        if (!a || a.kind === 'heal') return null;
+        return { kind: a.kind === 'lunge' ? 'attack' : 'hit', n: a.n };
+    };
+    const fled = !!current && step > 0 && current.log.slice(0, step).some((ev) => ev.ev === 'flee' || ev.ev === 'left_early');
 
     return (
         <>
             <Head title={`${trip.place.name} replay`} />
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <Link href={trip.mail_id ? `/mail/${trip.mail_id}` : '/mail'} className="btn-ghost">
-                    <ChevronLeft className="size-4" /> {trip.mail_id ? 'Back to report' : 'Mail'}
+                <Link
+                    href={trip.is_bot ? `/leaderboard/${trip.character_id}?tab=history` : trip.mail_id ? `/mail/${trip.mail_id}` : '/mail'}
+                    className="btn-ghost"
+                >
+                    <ChevronLeft className="size-4" /> {trip.is_bot ? 'Back to rival' : trip.mail_id ? 'Back to report' : 'Mail'}
                 </Link>
                 <div className="text-xs text-ink-400">Run #{trip.run_id} · {formatDateTime(trip.created_at, tz)}</div>
             </div>
@@ -276,12 +290,38 @@ export default function TripPage({ trip }: { trip: Trip }) {
                             <div className="font-display text-sm tracking-[0.2em] text-ink-300 uppercase">
                                 {current.is_boss ? '☠ Boss encounter' : `Encounter ${current.seq}`}
                             </div>
-                            <div className="font-display text-sm text-ink-400 tabular-nums">
-                                Round {current.log[Math.max(0, step - 1)]?.r ?? 1}
-                                {current.rounds > 0 && ` / ${current.rounds}`}
+                            <div className="flex items-center gap-3">
+                                <div className="font-display text-sm text-ink-400 tabular-nums">
+                                    Round {current.log[Math.max(0, step - 1)]?.r ?? 1}
+                                    {current.rounds > 0 && ` / ${current.rounds}`}
+                                </div>
+                                <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setView3d((v) => !v)} title={view3d ? 'Classic view' : '3D view'}>
+                                    {view3d ? <><LayoutGrid className="size-3.5" /> Classic</> : <><Box className="size-3.5" /> 3D</>}
+                                </button>
                             </div>
                         </div>
 
+                        {view3d ? (
+                            <Suspense fallback={<div className="relative grid h-[380px] place-items-center text-sm text-ink-400">Loading the 3D arena…</div>}>
+                                <div className="relative">
+                                    <BattleReplay3D
+                                        key={`enc-${enc}`}
+                                        hero={{ id: HERO, label: trip.hero, base: 'hero', hp: frame.hero, maxHp: trip.max_hp, cue: cueOf(HERO, frame.hero) }}
+                                        heroEquipment={trip.equipment ?? {}}
+                                        monsters={liveMonsters.map((u: Unit) => ({
+                                            id: u.name, label: u.label, base: u.base, hp: frame.monsters[u.name] ?? 0, maxHp: u.hp, boss: u.is_boss,
+                                            cue: cueOf(u.name, frame.monsters[u.name] ?? 0),
+                                        }))}
+                                        popups={popups}
+                                        speed={speed}
+                                        fled={fled}
+                                        boss={current.is_boss}
+                                        place={trip.place}
+                                        heroLook={trip.look ?? null}
+                                    />
+                                </div>
+                            </Suspense>
+                        ) : (
                         <div className="relative grid min-h-64 grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-10">
                             <Fighter
                                 name={trip.hero}
@@ -314,6 +354,7 @@ export default function TripPage({ trip }: { trip: Trip }) {
                                 ))}
                             </div>
                         </div>
+                        )}
 
                         {encDone && (
                             <div className="pointer-events-none absolute inset-0 grid place-items-center">

@@ -1,0 +1,8 @@
+All models in this folder are CC0 1.0 (public domain) unless noted.
+
+characters/*_Peasant, *_Ranger  - Quaternius, "Modular Character Outfits - Fantasy" (CC0) https://quaternius.com
+characters/Superhero_*, Hair_*  - Quaternius, "Universal Base Characters" (CC0); only head/neck triangles are drawn at runtime
+anim.glb                        - Quaternius, "Universal Animation Library" (CC0), trimmed to Idle_Loop + Sword_Idle
+weapons/ (swords, axes, maces, daggers, spear, bows, shields) - Quaternius, "Lowpoly Medieval Weapons" (CC0), re-scaled with the grip at the origin
+weapons/staff, wand, crossbow_1h - KayKit Adventurers 1.0 by Kay Lousberg (CC0), re-scaled
+Textures were down-sized to 1024px WebP.

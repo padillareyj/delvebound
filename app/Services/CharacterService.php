@@ -99,6 +99,19 @@ class CharacterService
         });
     }
 
+    /** Saves the cosmetic hero look (already validated and normalised by HeroLook). */
+    public function updateLook(int $accountId, int $version, array $look): void
+    {
+        DB::transaction(function () use ($accountId, $version, $look) {
+            $char = $this->lock($accountId);
+            $this->checkVersion($char, $version);
+            DB::table('characters')->where('id', $char['id'])->update([
+                'look' => json_encode($look),
+                'row_version' => DB::raw('row_version + 1'),
+            ]);
+        });
+    }
+
     public function respec(int $accountId, int $version): int
     {
         return DB::transaction(function () use ($accountId, $version) {
@@ -366,6 +379,7 @@ class CharacterService
                 'rarity' => $item->rarity,
                 'item_level' => (int) $item->item_level,
             ], $balance);
+            app(CardService::class)->destroyOnItem($itemId);
             DB::table('item_instances')->where('id', $itemId)->update(['status' => 'destroyed', 'character_id' => null]);
             DB::table('characters')->where('id', $cid)->update([
                 'horcrux_tier' => Growth::tierFor($progress, $balance),

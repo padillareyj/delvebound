@@ -247,7 +247,7 @@ class PremiumTest extends GameTestCase
         $sql = file_get_contents(dirname(__DIR__, 2).'/database/seeders/sql/050_premium.sql');
         preg_match_all('/"([a-z_]+)":/', $sql, $m);
         foreach (array_unique($m[1]) as $key) {
-            $this->assertContains($key, Stats::BONUS_KEYS, $key);
+            $this->assertContains($key, Stats::bonusKeys(), $key);
         }
     }
 }

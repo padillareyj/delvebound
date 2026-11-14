@@ -138,6 +138,9 @@ final class MailReport
             foreach ($enc['drops'] ?? [] as $drop) {
                 $lines[] = '    ► Loot: '.self::itemLine($drop);
             }
+            foreach ($enc['cards'] ?? [] as $card) {
+                $lines[] = '    ► Card: '.self::cardLine($card);
+            }
             foreach ($enc['materials'] ?? [] as $mat) {
                 $lines[] = "    ► Material: {$mat['name']} ×{$mat['qty']}";
             }
@@ -159,6 +162,9 @@ final class MailReport
             $lines[] = 'Defeat: XP and gold halved. Everything found on this trip was lost.';
             foreach ($result['lost_items'] as $drop) {
                 $lines[] = '    Lost: '.self::itemLine($drop);
+            }
+            foreach ($result['lost_cards'] ?? [] as $card) {
+                $lines[] = '    Lost: '.self::cardLine($card);
             }
             foreach ($result['lost_materials'] ?? [] as $mat) {
                 $lines[] = "    Lost: {$mat['name']} ×{$mat['qty']}";
@@ -185,7 +191,15 @@ final class MailReport
 
     private static function itemLine(array $item): string
     {
-        return "{$item['display_name']} [{$item['rarity']}, ilvl {$item['item_level']}]";
+        $slots = (int) ($item['card_slots'] ?? 0);
+        $extra = $slots > 0 ? ", {$slots} slot".($slots === 1 ? '' : 's') : '';
+
+        return "{$item['display_name']} [{$item['rarity']}, ilvl {$item['item_level']}{$extra}]";
+    }
+
+    private static function cardLine(array $card): string
+    {
+        return "{$card['display_name']} [{$card['rarity']}, ilvl {$card['item_level']}]";
     }
 
     private static function payload(array $result, int $runId, int $tripNo): array

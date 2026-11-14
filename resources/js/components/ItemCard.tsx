@@ -75,6 +75,7 @@ export function GearReadout({ item, against }: { item: Item; against?: Item | nu
             <div className={clsx('mt-0.5 text-[10px] uppercase tracking-wider', RARITY_TEXT[item.rarity])}>
                 {item.rarity} {typeLabel(item)} · iLvl {item.item_level}
                 {item.req_level > 1 && ` · Req ${item.req_level}`}
+                {(item.card_slots ?? 0) > 0 && ` · ${filledSlots(item)}/${item.card_slots} cards`}
             </div>
             <div className="mt-1">
                 {against ? (
@@ -96,6 +97,10 @@ export function GearReadout({ item, against }: { item: Item; against?: Item | nu
             </div>
         </div>
     );
+}
+
+function filledSlots(item: Item): number {
+    return (item.cards ?? []).filter(Boolean).length;
 }
 
 function typeLabel(item: Item): string {
@@ -179,6 +184,14 @@ export function ItemLines({ item }: { item: Item }) {
             {item.affixes.map((a, i) => (
                 <div key={i} className="text-arcane-400">{modLine(a.stat_key, a.value)}</div>
             ))}
+            {(item.card_slots ?? 0) > 0 && (
+                <div className="text-lantern-300">
+                    Cards {filledSlots(item)}/{item.card_slots}
+                    {(item.cards ?? []).filter(Boolean).map((card) => (
+                        <div key={card!.id} className="text-[11px] text-ink-300">· {card!.display_name}</div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -209,6 +222,7 @@ export function ItemCard({ item, children, footer, compact, highlight }: {
                     <div className="mt-0.5 text-[11px] uppercase tracking-wider text-ink-400">
                         {item.rarity} {SLOT_LABELS[item.template_slot] ?? item.template_slot} · iLvl {item.item_level}
                         {item.req_level > 1 && ` · Req ${item.req_level}`}
+                        {(item.card_slots ?? 0) > 0 && ` · ◈ ${filledSlots(item)}/${item.card_slots}`}
                     </div>
                 </div>
             </div>

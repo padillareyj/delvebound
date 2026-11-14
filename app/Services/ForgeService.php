@@ -49,6 +49,8 @@ class ForgeService
                 Rng::forge($drawn, $cid, (int) $left['id'], (int) $right['id']),
             );
             $goldAfter = (int) $char['gold'] - (int) $result['gold'];
+            app(CardService::class)->destroyOnItem((int) $left['id']);
+            app(CardService::class)->destroyOnItem((int) $right['id']);
             DB::table('item_instances')->whereIn('id', [(int) $left['id'], (int) $right['id']])->update([
                 'status' => 'destroyed',
                 'character_id' => null,
@@ -119,6 +121,7 @@ class ForgeService
             'armor' => $item['armor'],
             'mres' => $item['mres'],
             'sell_value' => $item['sell_value'],
+            'card_slots' => (int) ($item['card_slots'] ?? 0),
             'source' => 'craft',
         ]);
         foreach ($item['affixes'] ?? [] as $affix) {

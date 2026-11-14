@@ -113,9 +113,77 @@ export const BONUS_LABELS: Record<string, string> = {
 
 export const BONUS_ORDER = Object.keys(BONUS_LABELS);
 
+export const ELEMENTS = ['fire', 'water', 'thunder', 'earth', 'wind'] as const;
+
+export const ELEMENT_META: Record<(typeof ELEMENTS)[number], { label: string; glyph: string; tone: string }> = {
+    fire: { label: 'Fire', glyph: '🔥', tone: 'text-orange-400' },
+    water: { label: 'Water', glyph: '💧', tone: 'text-frost-400' },
+    thunder: { label: 'Thunder', glyph: '⚡', tone: 'text-arcane-400' },
+    earth: { label: 'Earth', glyph: '⛰', tone: 'text-lantern-300' },
+    wind: { label: 'Wind', glyph: '🌬', tone: 'text-moss-400' },
+};
+
+/** Global combat-detail labels (DESIGN.md §3.2.2). */
+export const ADVANCED_GLOBAL_LABELS: Record<string, string> = {
+    dmg_resist_pct: 'Dmg Resist',
+    dmg_resist: 'Dmg Resist',
+    ignore_defense_pct: 'Ignore Defense',
+    lucky_resist_pct: 'Lucky Resist',
+    excellency_resist_pct: 'Excellency Resist',
+    double_resist_pct: 'Double Resist',
+    hit_bonus_pct: 'Hit Bonus',
+    excellency_bonus_pct: 'Excellency Bonus',
+    dmg_penetration_pct: 'Dmg Penetration',
+    final_dmg_bonus_pct: 'Final Damage Bonus',
+    damage_support_pct: 'Damage Support',
+    true_damage: 'True Damage',
+};
+
+export const ADVANCED_GLOBAL_ORDER = Object.keys(ADVANCED_GLOBAL_LABELS);
+
+/** Per-element row labels; the element name is prefixed in the UI. */
+export const ADVANCED_ELEMENT_LABELS: Record<string, string> = {
+    atk: 'ATK',
+    def: 'DEF',
+    resistance: 'Resistance',
+    reduce_res: 'Reduce Resistance',
+    penetration: 'Penetration',
+    crit_pct: 'Crit',
+    crit_res_pct: 'Crit Resistance',
+    crit_bonus_pct: 'Crit Bonus',
+    crit_decrease_pct: 'Crit Decrease',
+    lucky_strike_pct: 'Lucky Strike',
+    lucky_resist_pct: 'Lucky Resist',
+    dmg_addition: 'DMG Addition',
+    dmg_bonus_pct: 'Dmg Bonus',
+    def_ignoring_pct: 'DEF Ignoring',
+    dmg_res_pct: 'DMG Res',
+};
+
+export const ADVANCED_ELEMENT_ORDER = Object.keys(ADVANCED_ELEMENT_LABELS);
+
+export function advancedValue(key: string, value: number, row?: { atk_min?: number; atk_max?: number; def_min?: number; def_max?: number }): string {
+    if (key === 'atk' && row) return `${num(row.atk_min ?? value)} – ${num(row.atk_max ?? value)}`;
+    if (key === 'def' && row) return `${num(row.def_min ?? value)} – ${num(row.def_max ?? value)}`;
+    if (key.endsWith('_pct')) return `${(Math.round(value * 1000) / 1000).toString()}%`;
+    return num(Math.round(value));
+}
+
 export function bonusLine(key: string, value: number): string {
     const pct = key.endsWith('_pct');
-    return `${value > 0 ? '+' : ''}${round1(value)}${pct ? '%' : ''} ${BONUS_LABELS[key] ?? key}`;
+    const label = BONUS_LABELS[key]
+        ?? ADVANCED_GLOBAL_LABELS[key]
+        ?? (() => {
+            for (const el of ELEMENTS) {
+                const prefix = `${el}_`;
+                if (key.startsWith(prefix)) {
+                    const short = key.slice(prefix.length);
+                    return `${el[0].toUpperCase()}${el.slice(1)} ${ADVANCED_ELEMENT_LABELS[short] ?? short}`;
+                }
+            }
+            return key;
+        })();
+    return `${value > 0 ? '+' : ''}${round1(value)}${pct ? '%' : ''} ${label}`;
 }
 
 export function money(cents: number): string {

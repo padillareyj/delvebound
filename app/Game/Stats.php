@@ -7,11 +7,17 @@ final class Stats
 {
     public const PRIMARY = ['str', 'dex', 'int', 'vit', 'luk'];
 
-    /** Keys a bonus source (skills, horcrux, premium) may set (DESIGN.md §3.2.1). */
+    /** Classic bonus keys (DESIGN.md §3.2.1). The full vocabulary is bonusKeys(). */
     public const BONUS_KEYS = [
         'hp', 'attack', 'defense', 'mres', 'crit_pct', 'crit_dmg_pct', 'dodge_pct', 'speed', 'magic_find_pct', 'gold_find_pct',
         'hp_pct', 'attack_pct', 'defense_pct', 'lifesteal_pct', 'penetration_pct', 'dmg_reduction_pct', 'xp_pct',
     ];
+
+    /** Classic + advanced combat-sheet keys (§3.2.2). Bonus sources may set any of these. */
+    public static function bonusKeys(): array
+    {
+        return [...self::BONUS_KEYS, ...Advanced::bonusKeys()];
+    }
 
     public static function derived(array $stats, int $level, array $equipment, ?array $balance = null, int $injury = 0, array $buffs = [], array $bonus = []): array
     {
@@ -129,6 +135,7 @@ final class Stats
             'int' => (int) $int,
             'vit' => (int) $vit,
             'luk' => (int) $luk,
+            'advanced' => Advanced::fromBonus($bonus, $balance),
         ];
     }
 

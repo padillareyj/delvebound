@@ -122,10 +122,11 @@ Fights go until one side reaches 0 HP.
 - **Stat keys** used by affixes and implicit modifiers (one shared vocabulary for PHP, TypeScript, and JSON):
   `str, dex, int, vit, luk, hp, attack, armor, mres, crit_pct, crit_dmg_pct, dodge_pct, speed,
   gold_find_pct, magic_find_pct`.
-- **Bonus keys** used by skills, the horcrux, and premium pieces (`App\Game\Stats::BONUS_KEYS`, §3.2.1):
-  `hp, attack, defense, mres, crit_pct, crit_dmg_pct, dodge_pct, speed, magic_find_pct, gold_find_pct`
-  (flat) and `hp_pct, attack_pct, defense_pct, lifesteal_pct, penetration_pct, dmg_reduction_pct, xp_pct`
-  (percent layer and premium-only stats).
+- **Bonus keys** used by skills, the horcrux, and premium pieces (`App\Game\Stats::bonusKeys()`, §3.2.1–§3.2.2):
+  the classic set `hp, attack, defense, mres, crit_pct, crit_dmg_pct, dodge_pct, speed, magic_find_pct,
+  gold_find_pct` (flat) and `hp_pct, attack_pct, defense_pct, lifesteal_pct, penetration_pct,
+  dmg_reduction_pct, xp_pct` (percent layer), plus every advanced combat-sheet key in §3.2.2
+  (`dmg_resist_pct`, `true_damage`, `fire_atk`, `water_crit_pct`, …).
 - **Accounts vs. characters:** `accounts` holds human logins only. `characters.account_id` is `UNIQUE`,
   so one account has exactly one character; bots have `account_id = NULL` (a UNIQUE index allows many
   NULLs), `is_bot = TRUE`, and a `bot_profile_id`. A CHECK constraint enforces this.
@@ -407,6 +408,7 @@ CREATE TABLE characters (
   auto_mode              BOOLEAN NOT NULL DEFAULT FALSE,       -- human runs the bot planner at the start of a run
   auto_profile_id        SMALLINT UNSIGNED NULL,               -- bot_profiles row used while auto_mode is on
   auto_place             ENUM('profile','best') NOT NULL DEFAULT 'profile', -- profile: personality risk; best: hardest clearable place
+  look                   JSON NULL,                            -- cosmetic 3D hero look (see "Hero look" below); never read by the simulation
   injury_severity        TINYINT UNSIGNED NOT NULL DEFAULT 0,  -- 0 none, 1 wounded, 2 badly wounded
   injury_runs_left       TINYINT UNSIGNED NOT NULL DEFAULT 0,
   last_place_id          SMALLINT UNSIGNED NULL,
@@ -537,6 +539,7 @@ CREATE TABLE item_instances (
   armor              SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   mres               SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   sell_value         INT UNSIGNED NOT NULL DEFAULT 1,
+  card_slots         TINYINT UNSIGNED NOT NULL DEFAULT 0,  -- rolled on drop; shop/starter = 0 (§6.10)
   source             ENUM('starter','drop','chest','boss','shop','admin','craft') NOT NULL DEFAULT 'drop',
   created_run_id     INT UNSIGNED NULL,
   created_trip_id    INT UNSIGNED NULL,
@@ -546,6 +549,36 @@ CREATE TABLE item_instances (
   CONSTRAINT fk_items_owner    FOREIGN KEY (character_id)    REFERENCES characters(id),
   CONSTRAINT fk_items_run      FOREIGN KEY (created_run_id)  REFERENCES simulation_runs(id),
   CONSTRAINT fk_items_trip     FOREIGN KEY (created_trip_id) REFERENCES trips(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE card_instances (
+  id                 INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  character_id       INT UNSIGNED NULL,
+  status             ENUM('owned','socketed','sold','destroyed','lost') NOT NULL DEFAULT 'owned',
+  rarity             ENUM('common','uncommon','rare','epic','legendary') NOT NULL DEFAULT 'common',
+  display_name       VARCHAR(96) NOT NULL,
+  monster_code       VARCHAR(40) NULL,
+  item_level         SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  bonuses            JSON NOT NULL,
+  sell_value         INT UNSIGNED NOT NULL DEFAULT 1,
+  source             ENUM('drop','boss','admin') NOT NULL DEFAULT 'drop',
+  created_run_id     INT UNSIGNED NULL,
+  created_trip_id    INT UNSIGNED NULL,
+  acquired_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_cards_owner (character_id, status),
+  CONSTRAINT fk_cards_owner FOREIGN KEY (character_id) REFERENCES characters(id),
+  CONSTRAINT fk_cards_run   FOREIGN KEY (created_run_id) REFERENCES simulation_runs(id),
+  CONSTRAINT fk_cards_trip  FOREIGN KEY (created_trip_id) REFERENCES trips(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE item_instance_cards (
+  item_instance_id  INT UNSIGNED NOT NULL,
+  slot_index        TINYINT UNSIGNED NOT NULL,
+  card_instance_id  INT UNSIGNED NOT NULL,
+  PRIMARY KEY (item_instance_id, slot_index),
+  UNIQUE KEY uq_iic_card (card_instance_id),
+  CONSTRAINT fk_iic_item FOREIGN KEY (item_instance_id) REFERENCES item_instances(id) ON DELETE CASCADE,
+  CONSTRAINT fk_iic_card FOREIGN KEY (card_instance_id) REFERENCES card_instances(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE item_instance_affixes (
@@ -713,6 +746,16 @@ LEFT JOIN places bp ON bp.id = c.best_place_id
 WHERE c.is_active = TRUE;
 ```
 
+**Hero look (`characters.look`, migration `2026_10_14_130000_character_look`).** A purely cosmetic JSON
+object the player edits on the Character page (Appearance tab, `POST /character/look`, validated by
+`App\Services\HeroLook`): `gender` (male/female), `race` (human/elf/dwarf/orc/undead), `skin` and
+`hair_color` (`#rrggbb`, hair colour may be null for the texture's own colour), `hair`
+(none/simple_parted/buzzed/buzzed_female/long/buns), `beard` (male only), `outfit`
+(peasant/ranger/ranger_hooded), `height` (90–110 %) and `build` (85–120 %). It only drives the 3D hero in
+the preview and the battle replay. Races here have **no mechanics**: stats, combat, bots, and the simulation
+never read the column. Existing heroes were backfilled with the weapon-based look they already showed; NULL
+(new sign-ups) means "pick the look from the equipped weapon".
+
 ### 2.4 Growth tables
 
 Added in migration `2026_09_28_180000_growth`. Content is `database/seeders/sql/030_growth.sql`.
@@ -724,7 +767,7 @@ CREATE TABLE material_templates (
   id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(40) NOT NULL,
   name VARCHAR(64) NOT NULL,
-  kind ENUM('dust','shard','essence') NOT NULL,
+  kind ENUM('dust','shard','essence','system') NOT NULL,
   glyph VARCHAR(8) NOT NULL DEFAULT '✦',
   description VARCHAR(255) NULL,
   sort_order SMALLINT NOT NULL DEFAULT 0,
@@ -859,6 +902,53 @@ lives in `balance.json` → `derived`. The fixture file has a case for each step
 *Damage type:* INT-scaling weapons deal **magic** damage (reduced by the target's magic resist); all
 others deal **physical** damage (reduced by defense). Mages trade HP and defense for reaching the
 weak magic resist of armored monsters (golems, skeletons).
+
+#### 3.2.2 Advanced combat sheet (elements + detail)
+
+`Stats::derived` also returns `advanced` from `App\Game\Advanced::fromBonus` (DESIGN decision 32). It is
+a second sheet next to the classic derived table: values start at **0** and only rise from bonus
+sources. **Combat does not read these yet**; trips and the arena still use §4.4. Grant systems
+(premium pieces, skills, later content) may set any of the keys below through the shared bonus map.
+
+**Global keys** (`advanced.global`):
+
+| Key | Sheet label | Unit |
+|---|---|---|
+| `dmg_resist_pct` | Dmg Resist | % |
+| `dmg_resist` | Dmg Resist | flat |
+| `ignore_defense_pct` | Ignore Defense | % |
+| `lucky_resist_pct` | Lucky Resist | % |
+| `excellency_resist_pct` | Excellency Resist | % |
+| `double_resist_pct` | Double Resist | % |
+| `hit_bonus_pct` | Hit Bonus | % |
+| `excellency_bonus_pct` | Excellency Bonus | % |
+| `dmg_penetration_pct` | Dmg Penetration | % |
+| `final_dmg_bonus_pct` | Final Damage Bonus | % |
+| `damage_support_pct` | Damage Support | % |
+| `true_damage` | True Damage | flat |
+
+**Elements** (`fire`, `water`, `thunder`, `earth`, `wind`). Each has the same suffixes; the bonus key is
+`{element}_{suffix}` (e.g. `fire_crit_pct`):
+
+| Suffix | Sheet label | Unit |
+|---|---|---|
+| `atk` / `def` | ATK / DEF | flat; the sheet also shows a display range using combat `variance_min`–`variance_max` |
+| `resistance` | Resistance | flat |
+| `reduce_res` | Reduce Resistance | flat |
+| `penetration` | Penetration | flat |
+| `crit_pct` | Crit | % |
+| `crit_res_pct` | Crit Resistance | % |
+| `crit_bonus_pct` | Crit Bonus | % |
+| `crit_decrease_pct` | Crit Decrease | % |
+| `lucky_strike_pct` | Lucky Strike | % |
+| `lucky_resist_pct` | Lucky Resist | % |
+| `dmg_addition` | DMG Addition | flat |
+| `dmg_bonus_pct` | Dmg Bonus | % |
+| `def_ignoring_pct` | DEF Ignoring | % |
+| `dmg_res_pct` | DMG Res | % |
+
+The Hero page's **Detail** tab (`/character?tab=detail`) is the sheet. Classic lifesteal / pierce /
+damage reduction / XP sit at the top as the core combat block that already works.
 
 **Injury modifiers** (§4.5): *Wounded* gives −20% max HP and −10% attack for the trip.
 
@@ -1293,6 +1383,23 @@ masterpiece = masterpiece_weight · (1 + quality · masterpiece_per_tier) · (1 
 Starting numbers (`balance.json` → `forge`): two common level-1 pieces cost **23** gold and crack **50%** / yield **42%** /
 sing **8%** at LUK 0. Two epics are much more likely to sing, and a short purse or a slot mismatch refuses before any
 roll. Equipped gear has to come off first. The same seed replays the same piece.
+
+### 6.10 Cards (RO-style sockets)
+
+Random monster cards and random card slots on gear (decision 36). Rules live in `App\Game\Cards`.
+
+- **Slots on gear.** When an item is rolled (`drop` / `chest` / `boss` / `craft`), `card_slots` is drawn from
+  `balance.cards.slot_chances[rarity]` (luck nudges higher slot counts). Shop and starter gear always get **0**.
+  Stored on `item_instances.card_slots`.
+- **Card drops.** After a kill's gear roll, a separate chance
+  `min(cap, drop_chance_base · (1 + luk_drop_bonus · LUK) · boss_drop_mult?)` may create a
+  `card_instances` row named `"{Monster} Card"` with random rarity and 1–2 classic bonus keys from
+  `cards.bonus_pool` (scaled by monster level). Defeat loses unkept cards like gear.
+- **Socketing.** The Character → Cards tab inserts a loose card into an empty socket or removes it back to the
+  bag (`POST /character/cards/insert|remove|sell`). Socketed cards are `item_instance_cards`. Selling,
+  forging, or feeding a piece destroys its socketed cards. Card bonuses merge into `Premium::combinedBonus`
+  via `Cards::bonusesFromEquipment`, so trips and the arena see them.
+- **Bots** auto-socket up to `bot_socket_per_run` best free cards into empty equipped sockets each run.
 
 A human strikes from the hero page's Forge section (`/character?tab=forge`, `POST /pack/forge`). Clicking an empty slot
 lists the spare pieces that fit; once one slot is filled, the other only offers the same slot. The odds and the gold cost on that panel are computed by
@@ -2140,15 +2247,16 @@ and Inertia swaps the page in place. The HTTP side uses the default `mysql` conn
 | `/login` | `auth/Login` | `accounts` | `POST /login`: session; `accounts.last_login_at`, `failed_logins`, `locked_until`. `POST /logout` |
 | `/account` | `Account` | own account | `POST /account/password`: change password (requires the current one) |
 | `/` | `Dashboard` | own character summary, unread mail count, pending order, belt, last `simulation_runs` row, recent trips | – |
-| `/character` | `Character` | left menu: Character (sheet, attributes, combat profile, power, auto mode), Skills, Horcrux, Inventory (`v_inventory` slot grid, equipment, belt, sealed `loot_boxes`, material stacks), Forge (§6.9), Collection (every premium piece, owned or locked, with activate / equip, §16.3). `?tab=skills\|horcrux\|inventory\|forge\|collection` opens that section. `Stats::derived()` includes skill, horcrux, and premium bonuses; a "Stat bonuses" panel shows base → bonus → total per stat and each bonus source; the power panel shows the portrait with equipped premium pieces. The forge quote (`Forge::quote`) is loaded when `forge_a` and `forge_b` are set | `POST /character/points`, `/character/prep` (retreat, potions, auto-repeat, and auto mode + personality + map choice `profile` or `best`), `/character/respec` (cost `50·level` gold **[T]**), `/character/skills/{code}`, `/character/horcrux`, the Collection tab's `/premium/activate`, `/premium/activate-all`, `/premium/wear`, `/premium/take-off`, plus the old pack writes below |
+| `/character` | `Character` | left menu: Character (sheet, attributes, combat profile, power, auto mode), Skills, Horcrux, Inventory (`v_inventory` slot grid, equipment, belt, sealed `loot_boxes`, material stacks), Cards (§6.10), Forge (§6.9), Collection (every premium piece, owned or locked, with activate / equip, §16.3), Detail (advanced combat sheet, §3.2.2), Appearance. `?tab=skills\|horcrux\|inventory\|cards\|forge\|collection\|detail\|look` opens that section. `Stats::derived()` includes skill, horcrux, premium, systems, and socketed card bonuses; a "Stat bonuses" panel shows base → bonus → total per stat and each bonus source; the power panel shows the portrait with equipped premium pieces. The forge quote (`Forge::quote`) is loaded when `forge_a` and `forge_b` are set | `POST /character/points`, `/character/prep` (retreat, potions, auto-repeat, and auto mode + personality + map choice `profile` or `best`), `/character/respec` (cost `50·level` gold **[T]**), `/character/skills/{code}`, `/character/horcrux`, `/character/cards/insert`, `/character/cards/remove`, `/character/cards/sell`, the Collection tab's `/premium/activate`, `/premium/activate-all`, `/premium/wear`, `/premium/take-off`, plus the old pack writes below |
 | `/pack` | redirects to `/character` | — | `POST /pack/equip`, `/pack/unequip` (refused when the inventory already holds `inventory_capacity` items), `/pack/belt` (≤ `BELT_SLOTS` total), `/pack/bandage`, `/pack/chests/{id}/open`, `/pack/forge` (two unequipped pieces, same slot; §6.9). Gear is a grid of icons; stats show on hover |
 | `/market` | `Market` | `shop_listings` (+ templates), own gold/level/inventory, recent `shop_transactions` | `POST /market/buy`, `/market/sell-item`, `/market/sell-consumable` (§7.7 rules, ledger row per action; consumables buy/sell 1–20 at a time, selling shrinks `belt_qty` to what is left) |
 | `/premium` | `Premium` | `premium_items`, own `premium_cash` / `premium`, per-item stat preview from `Stats::derived`, recent premium `shop_transactions` | `POST /premium/buy` (`code`); owned pieces link to the Hero Collection tab; §16 rules |
+| `/quests` | `Quests` | today's daily board + activity chests + Jewels / Sigil Circle / Excellency / Wing Stars (§17); opening the page marks the login quest | `POST /quests/claim` (`code`), `/quests/chest` (`at`), `/quests/jewel` (`element`), `/quests/sigil` (`element`), `/quests/nexus`, `/quests/excellency`, `/quests/wing` |
 | `/map` | `Map` | `places` incl. **min/rec/max levels**, own past `trips` per place | `POST /map/order` (orders flow below), `DELETE /map/order` cancels the pending order; "Rest in town" = the Town place |
 | `/mail`, `/mail/{id}` | `mail/Index`, `mail/Show` | own `mail` (inbox, paging, filter by outcome/unread) | opening marks `is_read`; `DELETE /mail/{id}` soft-deletes (`deleted_at`); `POST /mail/read-all` marks the inbox read |
-| `/trips/{id}` | `Trip` | own `trips`, `trip_encounters.log`, `trip_loot` | – (animated round-by-round battle replay) |
-| `/leaderboard` | `Leaderboard` | `v_leaderboard` plus each character's power (`Growth::powerLevel` from level, skill ranks, and horcrux tier; sortable: level/XP, power, gold, boss kills, clears, defeats; bots marked 🤖). A name opens that adventurer's public sheet | – |
-| `/leaderboard/{id}` | `Adventurer` | any character's public sheet: attributes, derived stats, equipped gear, skill ranks, horcrux. Inventory, material stacks, belt counts, and expedition orders are not included | – |
+| `/trips/{id}` | `Trip` | own human trips, or any bot's `trips`, `trip_encounters.log`, and `trip_loot` | – (animated round-by-round battle replay; bot replays are public) |
+| `/leaderboard` | `Leaderboard` | public `v_leaderboard` plus each character's power (`Growth::powerLevel` from level, skill ranks, and horcrux tier; sortable: level/XP, power, gold, boss kills, clears, defeats; bots marked 🤖). A name opens that adventurer's public sheet | – |
+| `/leaderboard/{id}` | `Adventurer` | public character sheet: attributes, derived stats, equipped gear, skill ranks, horcrux; bot sheets also show recent expedition reports and battle replays. Inventory, material stacks, belt counts, and expedition orders are not included | – |
 | `/bots` | `Bots` | bot characters, their `bot_profiles` flavour text, recent `bot_decisions` | – |
 | `/arena` | `Arena` | own signup, waiting humans, every active bot (they always enter), the latest bracket and its logs, past champions | `POST /arena/enter` signs the session's character up; `DELETE /arena/enter` withdraws. There is no "start the arena" button |
 | `/runs` | `Runs` | `simulation_runs` history, outcome counts per run | – (admin only; there is no "Run now" button) |
@@ -2551,6 +2659,8 @@ Python `sim/` and the old `src/`, `templates/`, `bin/` folders removed.
 | 31 | **Mobile-style bonus layer.** Percent bonuses (`hp_pct`, `attack_pct`, `defense_pct`) after the flat sums, plus four new stats: lifesteal, armor pierce, damage reduction, and XP bonus. Only bonus sources set them, not gear. The arena now applies the same bonus map as trips, so skills and the horcrux count in duels too. | One bonus path for trips, arena, the best-map preview, and the sheet. The arena leaving out skills and the horcrux was an oversight. | Rey + design |
 | 32 | **The forge combines two pieces.** Same template slot, both unequipped. Gold is spent either way. The attempt cracks (both destroyed), yields a new piece at the better rarity, or sings (one tier higher, or a stronger legendary). Odds improve with the lower piece's rarity and with LUK. The website shows `Forge::quote`. Bots do not forge. | A gold sink that can fail or turn two spare pieces into something finer, without a recipe list. | Rey |
 | 33 | **Item drawings come from game-icons.net.** `ItemArt` maps slot, weapon class, handedness, and name keywords to a local SVG. The site tints it with the rarity color. Files live in the repo (CC BY 3.0). The footer and `/credits` attribute Lorc, Delapouite, Skoll, and Carl Olsen. | Gear had no pictures. The mapping stays stable when affixes and legendary titles change the display name. | Rey |
+| 35 | **Daily quests feed MU2-style systems (§17).** A daily board (login, trips, kills, clears, gold, arena) resets in Asia/Bangkok and pays Jewel Dust, Excellent Stones, Wing Feathers, and Sigil Ink. Four upgrade tracks spend those: elemental Jewels, Excellency, Wing Stars, and the Sigil Circle (five elemental sigils + a Nexus). Their bonuses fill the advanced combat sheet (§3.2.2). Progress is written by the simulation; claims and upgrades are website (or bot) writes on `characters.daily` / `characters.systems` / materials. | Need a loop that raises the new Detail stats without inventing a whole economy yet. MU Origin 2's daily → jewel / excellent / wing pattern fits; the Sigil Circle is an invented elemental ring on top. | Rey |
+| 36 | **RO-style random cards (§6.10).** Gear rolls random `card_slots` on drop (rarer = more likely / more slots); shop/starter stay at 0. Monsters can drop a random card named after them with random classic bonuses. The Character → Cards tab sockets/unsockets cards; bonuses apply in trips and the arena. Bots auto-socket. | Want the Ragnarok card feel without authoring a fixed card per monster. | Rey |
 | 34 | **Painted item icons replace the game-icons.net set.** Weapons, armor, shields, jewelry, and potions are 128×128 WebP from Flare, OSARE, Ravenmore, Scrittl, and Kit (CC0 or CC BY 3.0). No commercial-game rips. Each class keeps several icons where the packs have them; `ItemArt` hashes the template code into a plain-to-fancy window that shifts with rarity. A two-handed weapon still uses a two-handed drawing. Smoke and bandage stay SVG fallbacks. The rarity color glows a painting instead of masking it into a silhouette. | The silhouette set read as line art. Painted icons should differ from bow to bow and still match the weapon in hand. | Rey |
 
 ---
@@ -2738,3 +2848,44 @@ never buys a bundle. The step uses no RNG, so it does not shift later bot rolls.
 it: a human's dollars are only spent by that human. The decision is written in the bot transaction
 (`premium_cash`, `premium`, ledger rows with `actor='bot'`), and `bot_decisions.decision.premium` lists
 what was bought.
+
+---
+
+## 17. Daily Quests and Systems
+
+MU Origin 2-style loop (decision 35): finish a few tasks each day, claim materials, spend them on
+upgrade tracks that fill the advanced combat sheet (§3.2.2). Rules live in `App\Game\Daily` and
+`App\Game\Systems`. State is JSON on the character (`daily`, `systems`) so the website user only needs
+its existing `UPDATE` on `characters`.
+
+### 17.1 The day
+
+- Day key = calendar date in `balance.daily.timezone` (Asia/Bangkok, same idea as `DISPLAY_TIMEZONE`).
+- A stored `daily.day` that is not today rolls to an empty board.
+- Counters: `login`, `trips`, `kills`, `clears`, `gold`, `arena`, `arena_wins`.
+- The simulation raises trip counters in `applyTrip` and arena counters when a bracket finishes.
+- Opening `/quests` marks `login = 1`.
+
+### 17.2 Quests and chests **[T]**
+
+Quest list and activity chests live in `balance.json` → `daily`. Claiming a finished quest or chest
+adds materials to `characters.materials` (Jewel Dust, Excellent Stone, Wing Feather, Sigil Ink).
+Activity is the sum of `activity` on claimed quests; chests unlock at 30 / 60 / 100.
+
+### 17.3 Systems
+
+| Track | Material | Cap | What it raises |
+|---|---|---|---|
+| Elemental Jewels (fire…wind) | `jewel_dust` | 10 each | that element's ATK / dmg bonus / crit (and a little global resist or hit) |
+| Excellency | `excellent_stone` | 20 | excellency bonus/resist, hit bonus, ignore defense, final dmg |
+| Wing Stars | `wing_feather` | 10 | dmg resist, true damage, damage support, double resist |
+| Sigil Circle (fire…wind) | `sigil_ink` | 8 each | that element's crit bonus / dmg addition / def ignoring (or resist / lucky strike) |
+| Sigil Nexus | `sigil_ink` | 5 | final dmg, dmg penetration, true damage, a little of every elemental dmg bonus |
+
+The Sigil Nexus also needs `nexus_min_sigil_sum · (next level)` total sigil levels before it can rise
+(so Nexus 1 needs 5, Nexus 2 needs 10, …). Costs are `cost_base + cost_per_level · (next−1)`
+(Nexus uses its own `nexus_cost_*`). Bonuses enter `Premium::combinedBonus` through `Systems::bonuses`,
+so trips, arena, Detail, and power all see them. Bots claim ready quests and spend up to
+`bot_upgrades_per_run` upgrades each run (cheapest first among jewels, sigils, excellency, wings,
+nexus). Combat still does not *use* the advanced keys in §4.4; they show on Detail and wait for a
+later combat wiring decision.

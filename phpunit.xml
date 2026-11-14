@@ -28,7 +28,7 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="LOG_CHANNEL" value="null"/>
     </php>
 </phpunit>

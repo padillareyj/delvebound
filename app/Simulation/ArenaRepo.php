@@ -3,6 +3,7 @@
 namespace App\Simulation;
 
 use App\Game\Arena;
+use App\Game\Daily;
 use App\Game\Progression;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -112,18 +113,24 @@ final class ArenaRepo
         foreach ($ids as $id) {
             $fighter = $fighters[$id];
             $this->db->selectOne('SELECT id FROM characters WHERE id = ? FOR UPDATE', [$id]);
-            $row = (array) $this->db->selectOne('SELECT level, xp, gold, unspent_points FROM characters WHERE id = ?', [$id]);
+            $row = (array) $this->db->selectOne('SELECT level, xp, gold, unspent_points, daily FROM characters WHERE id = ?', [$id]);
             $wins = Arena::knockoutWins($id, $bracket['matches']);
             $champion = (int) $bracket['champion_id'] === $id;
             $purse = Arena::purse((int) $fighter['level'], $wins, $champion, $balance);
             $progress = Progression::applyXp((int) $row['level'], (int) $row['xp'], $purse['xp'], $balance);
             $gold = (int) $row['gold'] + $purse['gold'] + $progress['gold'];
+            $daily = Daily::state(
+                $row['daily'] ?? null,
+                Daily::dayKey($when, $balance['daily']['timezone']),
+                $balance,
+            );
+            Daily::noteArena($daily, $wins > 0 || $champion);
             $this->db->update(
                 'UPDATE characters
                     SET level = ?, xp = ?, total_xp = total_xp + ?, gold = ?, unspent_points = unspent_points + ?,
-                        arena_entered = 0, row_version = row_version + 1
+                        arena_entered = 0, daily = ?, row_version = row_version + 1
                   WHERE id = ?',
-                [$progress['level'], $progress['xp'], $purse['xp'], $gold, $progress['points'], $id],
+                [$progress['level'], $progress['xp'], $purse['xp'], $gold, $progress['points'], Daily::encode($daily), $id],
             );
             $this->db->insert(
                 "INSERT INTO arena_signups (character_id, status, consumed_tournament_id) VALUES (?, 'consumed', ?)",

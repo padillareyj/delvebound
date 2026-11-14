@@ -69,14 +69,5 @@ SELECT issue, detail FROM (
     FROM premium_items pi
     WHERE pi.category <> 'bundle' AND (pi.bonuses IS NULL OR JSON_LENGTH(pi.bonuses) = 0)
 
-    UNION ALL
-
-    -- Must match App\Game\Stats::BONUS_KEYS.
-    SELECT 'premium_unknown_bonus_key', CONCAT(pi.code, ':', k.bonus_key)
-    FROM premium_items pi
-    JOIN JSON_TABLE(JSON_KEYS(COALESCE(pi.bonuses, JSON_OBJECT())), '$[*]' COLUMNS (bonus_key VARCHAR(40) PATH '$')) k
-    WHERE k.bonus_key NOT IN ('hp', 'attack', 'defense', 'mres', 'crit_pct', 'crit_dmg_pct', 'dodge_pct', 'speed',
-                              'magic_find_pct', 'gold_find_pct', 'hp_pct', 'attack_pct', 'defense_pct',
-                              'lifesteal_pct', 'penetration_pct', 'dmg_reduction_pct', 'xp_pct')
 ) problems
 ORDER BY issue, detail;
