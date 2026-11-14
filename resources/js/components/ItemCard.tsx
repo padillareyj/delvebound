@@ -4,8 +4,8 @@ import { ItemGlyph } from '@/components/ItemGlyph';
 import { DERIVED_LABELS, RARITY_BORDER, RARITY_GLOW, RARITY_TEXT, SLOT_LABELS, STAT_NAMES, derivedDelta, modLine } from '@/lib/format';
 import type { Item, Rarity } from '@/types';
 
-export function slotGlyph(slot: string, className = 'size-6'): ReactNode {
-    return <ItemGlyph slot={slot} className={className} />;
+export function slotGlyph(slot: string, className = 'size-6', icon?: string | null): ReactNode {
+    return <ItemGlyph icon={icon} slot={slot} className={className} />;
 }
 
 const STAT_ORDER = [
@@ -66,11 +66,16 @@ const TONE_CLASS = { up: 'text-moss-400', down: 'text-blood-400', flat: 'text-in
 export function GearReadout({ item, against }: { item: Item; against?: Item | null }) {
     const rows = against ? compareRows(item, against) : [];
     return (
-        <div>
+        <div className="flex items-start gap-2">
+            <span className={clsx('grid size-10 shrink-0 place-items-center rounded-md border bg-ink-950/80', RARITY_BORDER[item.rarity], RARITY_TEXT[item.rarity])}>
+                <ItemGlyph icon={item.icon} slot={item.template_slot} className="size-7" />
+            </span>
+            <div className="min-w-0">
             <RarityName name={item.name} rarity={item.rarity} className="block text-sm leading-tight" />
             <div className={clsx('mt-0.5 text-[10px] uppercase tracking-wider', RARITY_TEXT[item.rarity])}>
                 {item.rarity} {typeLabel(item)} · iLvl {item.item_level}
                 {item.req_level > 1 && ` · Req ${item.req_level}`}
+                {(item.card_slots ?? 0) > 0 && ` · ${filledSlots(item)}/${item.card_slots} cards`}
             </div>
             <div className="mt-1">
                 {against ? (
@@ -89,8 +94,13 @@ export function GearReadout({ item, against }: { item: Item; against?: Item | nu
                     <ItemLines item={item} />
                 )}
             </div>
+            </div>
         </div>
     );
+}
+
+function filledSlots(item: Item): number {
+    return (item.cards ?? []).filter(Boolean).length;
 }
 
 function typeLabel(item: Item): string {
@@ -174,6 +184,14 @@ export function ItemLines({ item }: { item: Item }) {
             {item.affixes.map((a, i) => (
                 <div key={i} className="text-arcane-400">{modLine(a.stat_key, a.value)}</div>
             ))}
+            {(item.card_slots ?? 0) > 0 && (
+                <div className="text-lantern-300">
+                    Cards {filledSlots(item)}/{item.card_slots}
+                    {(item.cards ?? []).filter(Boolean).map((card) => (
+                        <div key={card!.id} className="text-[11px] text-ink-300">· {card!.display_name}</div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -196,14 +214,15 @@ export function ItemCard({ item, children, footer, compact, highlight }: {
             )}
         >
             <div className="flex items-start gap-3">
-                <div className={clsx('grid size-10 shrink-0 place-items-center rounded-lg border border-ink-700 bg-ink-950/70', RARITY_TEXT[item.rarity])}>
-                    <ItemGlyph slot={item.template_slot} itemType={item.item_type} twoHanded={item.two_handed} className="size-6" />
+                <div className={clsx('grid size-10 shrink-0 place-items-center rounded-lg border bg-ink-950/70', RARITY_BORDER[item.rarity], RARITY_TEXT[item.rarity])}>
+                    <ItemGlyph icon={item.icon} slot={item.template_slot} className="size-7" />
                 </div>
                 <div className="min-w-0 flex-1">
                     <RarityName name={item.name} rarity={item.rarity} className="block truncate text-sm leading-tight" />
                     <div className="mt-0.5 text-[11px] uppercase tracking-wider text-ink-400">
                         {item.rarity} {SLOT_LABELS[item.template_slot] ?? item.template_slot} · iLvl {item.item_level}
                         {item.req_level > 1 && ` · Req ${item.req_level}`}
+                        {(item.card_slots ?? 0) > 0 && ` · ◈ ${filledSlots(item)}/${item.card_slots}`}
                     </div>
                 </div>
             </div>

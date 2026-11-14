@@ -15,11 +15,16 @@ class PagesTest extends TestCase
         $this->resetGame();
     }
 
+    public function test_credits_page_is_public(): void
+    {
+        $this->get('/credits')->assertOk()->assertInertia(fn ($page) => $page->component('Credits'));
+    }
+
     public function test_every_page_renders_its_component(): void
     {
         [$account] = $this->makePlayer('rey');
         $pages = [
-            '/' => 'Dashboard', '/character' => 'Character', '/market' => 'Market', '/premium' => 'Premium', '/map' => 'Map',
+            '/' => 'Dashboard', '/character' => 'Character', '/market' => 'Market', '/premium' => 'Premium', '/quests' => 'Quests', '/map' => 'Map',
             '/mail' => 'mail/Index', '/leaderboard' => 'Leaderboard', '/bots' => 'Bots', '/arena' => 'Arena', '/account' => 'Account',
             '/runs' => 'Runs', '/admin' => 'admin/Index', '/admin/gear/create' => 'admin/GearForm',
         ];
@@ -60,9 +65,7 @@ class PagesTest extends TestCase
         [$account, $char] = $this->makePlayer('rey');
         $bot = DB::table('characters')->where('is_bot', 1)->first();
 
-        $this->get('/leaderboard/'.$char['id'])->assertRedirect('/login');
-
-        $this->actingAs($account)->get('/leaderboard/'.$char['id'])->assertOk()->assertInertia(fn ($page) => $page
+        $this->get('/leaderboard/'.$char['id'])->assertOk()->assertInertia(fn ($page) => $page
             ->component('Adventurer')
             ->where('character.id', $char['id'])
             ->where('character.is_bot', false)
@@ -75,14 +78,35 @@ class PagesTest extends TestCase
             ->missing('materials')
             ->missing('consumables'));
 
-        $this->actingAs($account)->get('/leaderboard/'.$bot->id.'?sort=power')->assertOk()->assertInertia(fn ($page) => $page
+        $this->get('/leaderboard/'.$bot->id.'?sort=power')->assertOk()->assertInertia(fn ($page) => $page
             ->component('Adventurer')
             ->where('character.is_bot', true)
             ->where('sort', 'power')
             ->has('equipment')
+            ->has('history')
             ->missing('inventory'));
 
-        $this->actingAs($account)->get('/leaderboard/999999')->assertNotFound();
+        $this->get('/leaderboard/999999')->assertNotFound();
+    }
+
+    public function test_bot_reports_and_replays_are_public_but_human_replays_remain_private(): void
+    {
+        [, $human] = $this->makePlayer('rey');
+        $this->artisan('delve:run', ['--seed' => 5])->assertExitCode(0);
+        $bot = DB::table('characters')->where('is_bot', 1)->first();
+        $trip = DB::table('trips')->where('character_id', $bot->id)->first();
+        $humanTrip = DB::table('trips')->where('character_id', $human['id'])->first();
+        $mail = DB::table('mail')->where('trip_id', $trip->id)->first();
+
+        $this->get('/leaderboard/'.$bot->id)->assertOk()->assertInertia(fn ($page) => $page
+            ->where('history.0.id', (int) $trip->id)
+            ->where('history.0.report_subject', $mail->subject)
+            ->where('history.0.report_body', $mail->body_text));
+        $this->get('/trips/'.$trip->id)->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Trip')
+            ->where('trip.is_bot', true)
+            ->has('trip.encounters'));
+        $this->get('/trips/'.$humanTrip->id)->assertNotFound();
     }
 
     public function test_runs_page_is_admin_only(): void

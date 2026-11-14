@@ -1,6 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import clsx from 'clsx';
-import { Bot, Gem, Shield, Swords, UserRound } from 'lucide-react';
+import { Bot, Gem, ScrollText, Shield, Swords, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { type HorcruxView } from '@/components/GrowthBoard';
 import { GearReadout } from '@/components/ItemCard';
@@ -24,6 +24,16 @@ interface PublicSkill {
 
 interface Props {
     sort: string;
+    history: {
+        id: number;
+        outcome: string;
+        xp: number;
+        gold: number;
+        created_at: string;
+        place: string;
+        report_subject: string | null;
+        report_body: string | null;
+    }[];
     character: {
         id: number;
         name: string;
@@ -58,6 +68,7 @@ const TABS = [
     { id: 'skills', label: 'Skills', icon: Swords },
     { id: 'horcrux', label: 'Horcrux', icon: Gem },
     { id: 'equipment', label: 'Equipment', icon: Shield },
+    { id: 'history', label: 'History', icon: ScrollText },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -72,18 +83,18 @@ const DOLL: (string | null)[][] = [
     [null, 'feet', null],
 ];
 
-function tabFromUrl(url: string): TabId {
+function tabFromUrl(url: string, isBot: boolean): TabId {
     const query = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
     const id = new URLSearchParams(query).get('tab');
-    return TABS.some((tab) => tab.id === id) ? (id as TabId) : 'character';
+    return TABS.some((tab) => tab.id === id && (isBot || tab.id !== 'history')) ? (id as TabId) : 'character';
 }
 
 export default function Adventurer({
-    sort, character: c, derived, baseDerived, buffs, power, appearance, skills, horcrux, equipment,
+    sort, history, character: c, derived, baseDerived, buffs, power, appearance, skills, horcrux, equipment,
 }: Props) {
     const tz = useTimezone();
     const { hero } = usePage<SharedProps>().props;
-    const tab = tabFromUrl(usePage().url);
+    const tab = tabFromUrl(usePage().url, c.is_bot);
     const [slot, setSlot] = useState<string | null>(null);
     const yours = hero?.id === c.id;
     const skillRanks = skills.reduce((n, skill) => n + skill.rank, 0);
@@ -127,7 +138,7 @@ export default function Adventurer({
 
             <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[13.5rem_1fr]">
                 <nav className="flex gap-2 overflow-x-auto lg:sticky lg:top-4 lg:flex-col" aria-label="Adventurer sections">
-                    {TABS.map((item) => {
+                    {TABS.filter((item) => c.is_bot || item.id !== 'history').map((item) => {
                         const Icon = item.icon;
                         const active = tab === item.id;
                         const note =
@@ -276,6 +287,42 @@ export default function Adventurer({
                         </Panel>
                     </div>
                 )}
+
+                {tab === 'history' && c.is_bot && (
+                    <Panel title="Recent expeditions">
+                        {history.length === 0 ? (
+                            <p className="text-sm text-ink-400">No expedition reports yet.</p>
+                        ) : (
+                            <ul className="space-y-3">
+                                {history.map((trip) => (
+                                    <li key={trip.id} className="rounded-lg border border-ink-700/70 bg-ink-900/40 p-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <div className="font-semibold text-ink-100">{trip.place}</div>
+                                                <div className="text-xs text-ink-400">
+                                                    {formatDate(trip.created_at, tz)} · {trip.outcome} · +{trip.xp} XP · +{trip.gold} gold
+                                                </div>
+                                            </div>
+                                            <Link href={`/trips/${trip.id}`} className="btn-primary">
+                                                <Swords className="size-4" /> Watch battle
+                                            </Link>
+                                        </div>
+                                        {trip.report_body && (
+                                            <details className="mt-3 border-t border-ink-700/60 pt-3">
+                                                <summary className="cursor-pointer text-sm font-semibold text-lantern-200">
+                                                    {trip.report_subject ?? 'Read expedition report'}
+                                                </summary>
+                                                <pre className="scroll-thin mt-3 max-h-96 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-ink-300">
+                                                    {trip.report_body}
+                                                </pre>
+                                            </details>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </Panel>
+                )}
             </div>
         </>
     );
@@ -327,7 +374,7 @@ function EquipSlot({ name, item, active, onClick }: { name: string; item?: Item;
                 active && 'ring-2 ring-lantern-400',
             )}
         >
-            <ItemGlyph slot={item?.template_slot ?? name} itemType={item?.item_type} twoHanded={item?.two_handed} className={clsx('size-7', !item && 'opacity-40')} />
+            <ItemGlyph icon={item?.icon} slot={item?.template_slot ?? name} className={clsx('size-8', !item && 'opacity-40')} />
             {item?.two_handed && <span className="absolute right-0.5 bottom-0.5 rounded bg-ink-950/90 px-0.5 text-[8px] font-bold leading-none text-lantern-200">2H</span>}
             {item && (
                 <div className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 hidden w-56 -translate-x-1/2 rounded-lg border border-ink-600 bg-ink-950 p-2 text-left shadow-xl group-hover:block">

@@ -66,6 +66,8 @@
     --animate-dialog-pop: dialog-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
     --animate-fade-in: fade-in 0.2s ease-out both;
     --animate-hammer: hammer 0.5s ease-in-out 3;
+    --animate-sigil-spin: sigil-spin 28s linear infinite;
+    --animate-sigil-pulse: sigil-pulse 2.4s ease-in-out infinite;
 
     @keyframes dialog-pop {
         0% { opacity: 0; transform: translateY(12px) scale(0.92); }
@@ -96,6 +98,14 @@
     @keyframes bob {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-4px); }
+    }
+    @keyframes sigil-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    @keyframes sigil-pulse {
+        0%, 100% { transform: scale(1); opacity: 0.85; filter: drop-shadow(0 0 6px rgba(196, 181, 253, 0.35)); }
+        50% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 16px rgba(196, 181, 253, 0.75)); }
     }
 
     @keyframes float-up {
@@ -226,4 +236,121 @@
     .text-shadow-glow {
         text-shadow: var(--title-shadow);
     }
+    .item-art {
+        display: inline-block;
+        background-color: currentColor;
+        mask-mode: alpha;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+    }
+    .item-art-raster {
+        display: inline-block;
+        object-fit: contain;
+        filter: drop-shadow(0 0 2px currentColor);
+    }
+
+    .sigil-stage {
+        position: relative;
+        width: min(100%, 22rem);
+        aspect-ratio: 1;
+        margin-inline: auto;
+        border-radius: 9999px;
+        background:
+            radial-gradient(circle at 50% 50%, rgba(167, 139, 250, 0.18), transparent 42%),
+            radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.95) 70%);
+        border: 1px solid color-mix(in oklab, var(--color-arcane-400) 35%, transparent);
+        box-shadow:
+            inset 0 0 40px rgba(167, 139, 250, 0.12),
+            0 0 28px rgba(167, 139, 250, 0.12);
+        overflow: hidden;
+    }
+    .sigil-halo {
+        position: absolute;
+        inset: 8%;
+        border-radius: 9999px;
+        border: 1px dashed color-mix(in oklab, var(--color-arcane-300) 45%, transparent);
+        background:
+            conic-gradient(from 0deg,
+                rgba(251, 146, 60, 0.18),
+                rgba(125, 211, 252, 0.18),
+                rgba(192, 132, 252, 0.22),
+                rgba(250, 204, 21, 0.16),
+                rgba(74, 222, 128, 0.18),
+                rgba(251, 146, 60, 0.18));
+        opacity: 0.55;
+        pointer-events: none;
+    }
+    .sigil-ring-line {
+        position: absolute;
+        inset: 22%;
+        border-radius: 9999px;
+        border: 1px solid color-mix(in oklab, var(--color-lantern-300) 28%, transparent);
+        pointer-events: none;
+    }
+    .sigil-nexus {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        z-index: 2;
+        width: 5.5rem;
+        height: 5.5rem;
+        transform: translate(-50%, -50%);
+        border-radius: 9999px;
+        border: 1px solid color-mix(in oklab, var(--color-arcane-300) 40%, transparent);
+        background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.12), rgba(76, 29, 149, 0.55) 55%, rgba(15, 23, 42, 0.95));
+        color: var(--color-ink-100);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.05rem;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    }
+    .sigil-nexus:disabled { cursor: default; opacity: 0.85; }
+    .sigil-nexus.is-lit {
+        border-color: color-mix(in oklab, var(--color-arcane-300) 70%, transparent);
+        box-shadow: 0 0 22px rgba(167, 139, 250, 0.45);
+    }
+    .sigil-nexus.is-ready:not(:disabled) {
+        cursor: pointer;
+        box-shadow: 0 0 28px rgba(250, 204, 21, 0.4);
+        border-color: color-mix(in oklab, var(--color-lantern-300) 70%, transparent);
+    }
+    .sigil-nexus.is-ready:not(:disabled):hover { transform: translate(-50%, -50%) scale(1.05); }
+    .sigil-nexus-core { font-size: 1.35rem; line-height: 1; }
+    .sigil-nexus-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-arcane-200); }
+    .sigil-nexus-lv { font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--color-ink-200); }
+    .sigil-nexus-cost { font-size: 0.6rem; color: var(--color-ink-400); }
+    .sigil-node {
+        position: absolute;
+        z-index: 3;
+        width: 4.25rem;
+        height: 4.25rem;
+        border-radius: 9999px;
+        border: 1px solid color-mix(in oklab, var(--color-ink-500) 70%, transparent);
+        background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.08), rgba(15, 23, 42, 0.92));
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.05rem;
+        color: var(--color-ink-200);
+        transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .sigil-node:disabled { cursor: default; }
+    .sigil-node.is-ready:not(:disabled) { cursor: pointer; }
+    .sigil-node.is-ready:not(:disabled):hover { transform: translate(-50%, -50%) scale(1.08); }
+    .sigil-node.is-lit { background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.14), rgba(15, 23, 42, 0.88)); }
+    .sigil-glyph { font-size: 1.15rem; line-height: 1; }
+    .sigil-name { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .sigil-lv { font-size: 0.62rem; font-variant-numeric: tabular-nums; color: var(--color-ink-300); }
+    .sigil-node-0 { left: 50%; top: 11%; transform: translate(-50%, -50%); }
+    .sigil-node-1 { left: 86%; top: 38%; transform: translate(-50%, -50%); }
+    .sigil-node-2 { left: 72%; top: 82%; transform: translate(-50%, -50%); }
+    .sigil-node-3 { left: 28%; top: 82%; transform: translate(-50%, -50%); }
+    .sigil-node-4 { left: 14%; top: 38%; transform: translate(-50%, -50%); }
 }

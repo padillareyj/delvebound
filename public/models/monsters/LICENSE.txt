@@ -1,0 +1,9 @@
+CC0 1.0 (public domain) models by Quaternius (https://quaternius.com), downloaded from poly.pizza:
+- Ultimate Monsters Bundle: Ghost, Ghost_Skull, Wizard, Yeti, Demon, Blue_Demon, Goleling_Evolved, Dragon_Evolved,
+  Mushroom_King, Mushnub, Frog, Green_Blob, Glub, Hywirl, Squidle, Dino, Tribal, Orc, Orc_Enemy
+- Animated Enemies: Rat, Spider, Wasp, Snake
+- Animated Animal Pack: Wolf, Bull
+
+Skeleton.glb, Bat.glb, Dragon.glb, Slime.glb - Quaternius (poly.pizza / quaternius.com), CC0 1.0.
+
+Zombie.glb - "Zombie" by bachosoftdesign, https://poly.pizza/m/xqEzosAVYX, licensed CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/). Optimized (meshopt, webp texture) for this game.

@@ -2,10 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Game\Stats;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
-/** Runs database/sql/check_content.sql; a healthy database returns no rows. */
+/** Runs database/sql/check_content.sql, then PHP checks that need Stats::bonusKeys(). */
 class CheckContent extends Command
 {
     protected $signature = 'delve:check-content';
@@ -19,6 +20,15 @@ class CheckContent extends Command
         foreach (self::statements($sql) as $statement) {
             foreach (DB::select($statement) as $row) {
                 $issues[] = array_values((array) $row);
+            }
+        }
+        $allowed = Stats::bonusKeys();
+        foreach (DB::table('premium_items')->select(['code', 'bonuses'])->get() as $row) {
+            $bonuses = is_string($row->bonuses) ? (json_decode($row->bonuses, true) ?: []) : (array) ($row->bonuses ?? []);
+            foreach (array_keys($bonuses) as $key) {
+                if (! in_array($key, $allowed, true)) {
+                    $issues[] = ['premium_unknown_bonus_key', "{$row->code}:{$key}"];
+                }
             }
         }
         if ($issues === []) {

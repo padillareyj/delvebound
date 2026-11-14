@@ -58,6 +58,7 @@ final class Trip
         $affixes = $ctx['affixes'] ?? [];
         $encounters = [];
         $items = [];
+        $cards = [];
         $materials = [];
         $pouchXp = 0;
         $pouchGold = 0;
@@ -75,6 +76,7 @@ final class Trip
             $xp = 0;
             $gold = 0;
             $drops = [];
+            $cardDrops = [];
             $mats = [];
             if ($fight['result'] === 'won') {
                 $won++;
@@ -96,6 +98,19 @@ final class Trip
                             't' => $monster['name'],
                             'name' => $drop['display_name'],
                             'rarity' => $drop['rarity'],
+                        ];
+                    }
+                    $card = Cards::tryDrop($monster, (float) $stats['luck'] + (float) ($place['rarity_bonus'] ?? 0), (int) $stats['luk'], $balance, $rng);
+                    if ($card) {
+                        $card['encounter_seq'] = $seq;
+                        $cardDrops[] = $card;
+                        $cards[] = $card;
+                        $fight['log'][] = [
+                            'r' => $fight['rounds'],
+                            'ev' => 'card',
+                            't' => $monster['name'],
+                            'name' => $card['display_name'],
+                            'rarity' => $card['rarity'],
                         ];
                     }
                     foreach (Growth::rollKill($place['materials'] ?? [], (bool) $monster['is_boss'], $rng, $balance) as $mat) {
@@ -137,6 +152,7 @@ final class Trip
                 'gold' => $gold,
                 'log' => $fight['log'],
                 'drops' => $drops,
+                'cards' => $cardDrops,
                 'materials' => $mats,
             ];
             if ($fight['result'] === 'lost') {
@@ -153,7 +169,7 @@ final class Trip
                     'seq' => $seq + 1, 'is_boss' => false, 'monsters' => [], 'names' => [], 'result' => 'left_early',
                     'rounds' => 0, 'damage_dealt' => 0, 'damage_taken' => 0,
                     'hp_before' => $actor['hp'], 'hp_after' => $actor['hp'], 'xp' => 0, 'gold' => 0,
-                    'log' => [['ev' => 'left_early']], 'drops' => [], 'materials' => [],
+                    'log' => [['ev' => 'left_early']], 'drops' => [], 'cards' => [], 'materials' => [],
                 ];
                 break;
             }
@@ -177,6 +193,8 @@ final class Trip
         $goldGained = $pouchGold;
         $keptItems = $items;
         $lostItems = [];
+        $keptCards = $cards;
+        $lostCards = [];
         $keptMaterials = $materials;
         $lostMaterials = [];
         if ($outcome === 'defeated') {
@@ -185,6 +203,8 @@ final class Trip
             $clearBonus = 0;
             $lostItems = $items;
             $keptItems = [];
+            $lostCards = $cards;
+            $keptCards = [];
             $lostMaterials = $materials;
             $keptMaterials = [];
         }
@@ -240,6 +260,8 @@ final class Trip
             'levels' => $progressed['levels'],
             'items' => $autosell['kept'],
             'lost_items' => $lostItems,
+            'cards' => $keptCards,
+            'lost_cards' => $lostCards,
             'autosell_owned' => $autosell['sold_owned'],
             'autosell_new' => $autosell['sold_new'],
             'materials' => $keptMaterials,
@@ -288,6 +310,8 @@ final class Trip
             'levels' => [],
             'items' => [],
             'lost_items' => [],
+            'cards' => [],
+            'lost_cards' => [],
             'autosell_owned' => [],
             'autosell_new' => [],
             'materials' => [],

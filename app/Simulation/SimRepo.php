@@ -5,11 +5,13 @@ namespace App\Simulation;
 use App\Game\Balance;
 use App\Game\Bots\Allocation;
 use App\Game\Bots\Gear;
+use App\Game\Daily;
 use App\Game\Loot;
 use App\Game\Newcomer;
 use App\Game\Premium;
 use App\Game\Rng;
 use App\Game\Rules;
+use App\Game\Systems;
 use Illuminate\Database\Connection;
 
 /** All simulation SQL (connection "sim"). The pure core in app/Game never touches the database. */
@@ -543,6 +545,7 @@ final class SimRepo
             'trips_total' => (int) $row['trips_total'],
             'equipment' => $equipment,
             'items' => array_values($items),
+            'cards' => $this->loadLooseCards($characterId),
             'consumables' => $consumables,
             'belt' => array_values(array_filter($consumables, fn ($c) => $c['belt_qty'] > 0)),
             'commons' => $commons,
@@ -556,6 +559,8 @@ final class SimRepo
                 $this->premiumCatalog(),
                 Balance::get(),
             ),
+            'daily' => $row['daily'] ?? null,
+            'systems' => Systems::state($row['systems'] ?? null, Balance::get()),
         ] + $this->loadGrowth($row);
     }
 
@@ -668,12 +673,66 @@ final class SimRepo
                 'item_level' => (int) $row['item_level'],
                 'display_name' => $row['display_name'],
                 'sell_value' => (int) $row['sell_value'],
+                'card_slots' => (int) ($row['card_slots'] ?? 0),
+                'cards' => array_fill(0, (int) ($row['card_slots'] ?? 0), null),
                 'source' => $row['source'],
                 'status' => $row['status'],
             ];
         }
+        $this->attachCards($items);
 
         return $items;
+    }
+
+    /** @param  array<int, array>  $items */
+    private function attachCards(array &$items): void
+    {
+        if ($items === []) {
+            return;
+        }
+        $ids = array_keys($items);
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        foreach ($this->all(
+            "SELECT iic.item_instance_id, iic.slot_index, c.*
+               FROM item_instance_cards iic
+               JOIN card_instances c ON c.id = iic.card_instance_id
+              WHERE iic.item_instance_id IN ({$marks})
+              ORDER BY iic.slot_index",
+            $ids,
+        ) as $row) {
+            $itemId = (int) $row['item_instance_id'];
+            if (! isset($items[$itemId])) {
+                continue;
+            }
+            $slot = (int) $row['slot_index'];
+            $items[$itemId]['cards'][$slot] = self::cardRow($row);
+        }
+    }
+
+    /** @return list<array> owned (loose) cards */
+    private function loadLooseCards(int $characterId): array
+    {
+        $rows = $this->all(
+            "SELECT * FROM card_instances WHERE character_id = ? AND status = 'owned' ORDER BY id",
+            [$characterId],
+        );
+
+        return array_map(fn ($row) => self::cardRow($row), $rows);
+    }
+
+    private static function cardRow(array $row): array
+    {
+        return [
+            'id' => (int) $row['id'],
+            'display_name' => $row['display_name'],
+            'monster_code' => $row['monster_code'],
+            'rarity' => $row['rarity'],
+            'item_level' => (int) $row['item_level'],
+            'bonuses' => self::json($row['bonuses']) ?: [],
+            'sell_value' => (int) $row['sell_value'],
+            'source' => $row['source'],
+            'status' => $row['status'],
+        ];
     }
 
     private function loadConsumables(int $characterId): array
@@ -789,17 +848,31 @@ final class SimRepo
             $runningGold += $payout;
             $this->ledger($cid, 'sim_autosell', $runId, 'sell', null, $itemId, null, 1, $payout, $runningGold);
         }
+        foreach ($result['cards'] ?? [] as $card) {
+            $this->insertCard($card, $cid, $runId, $tripId, 'owned');
+        }
+        foreach ($result['lost_cards'] ?? [] as $card) {
+            $this->insertCard($card, null, $runId, $tripId, 'lost');
+        }
         $bag = self::json($locked['materials']) ?: [];
         foreach ($result['materials'] ?? [] as $stack) {
             $bag[$stack['code']] = (int) ($bag[$stack['code']] ?? 0) + (int) $stack['qty'];
         }
         $this->logMaterials($tripId, $result['materials'] ?? [], true);
         $this->logMaterials($tripId, $result['lost_materials'] ?? [], false);
+        $balance = Balance::get();
+        $daily = Daily::state(
+            $locked['daily'] ?? null,
+            Daily::dayKey(new \DateTimeImmutable('now', new \DateTimeZone('UTC')), $balance['daily']['timezone']),
+            $balance,
+        );
+        Daily::noteTrip($daily, $result);
 
         foreach ($result['autosell_owned'] as $sold) {
             $payout = (int) $sold['sell_value'];
             $autosellGold += $payout;
             $runningGold += $payout;
+            $this->destroyCardsOnItem((int) $sold['id']);
             $this->db->update("UPDATE item_instances SET status = 'sold', character_id = NULL WHERE id = ?", [$sold['id']]);
             $this->ledger($cid, 'sim_autosell', $runId, 'sell', null, $sold['id'], null, 1, $payout, $runningGold);
         }
@@ -822,6 +895,7 @@ final class SimRepo
                kills = kills + ?,
                boss_kills = boss_kills + ?,
                materials = ?,
+               daily = ?,
                row_version = row_version + 1
              WHERE id = ?',
             [
@@ -834,6 +908,7 @@ final class SimRepo
                 $result['outcome'] === 'defeated' ? 1 : 0,
                 (int) $result['kills'], (int) $result['boss_kills'],
                 $bag === [] ? null : self::dumps($bag),
+                Daily::encode($daily),
                 $cid,
             ],
         );
@@ -897,11 +972,12 @@ final class SimRepo
     {
         $this->db->insert(
             'INSERT INTO item_instances (template_id, character_id, status, rarity, item_level, display_name, power, armor, mres,
-                                         sell_value, source, created_run_id, created_trip_id)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                                         sell_value, card_slots, source, created_run_id, created_trip_id)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
             [
                 $item['template_id'], $characterId, $status, $item['rarity'], $item['item_level'], $item['display_name'],
-                $item['power'], $item['armor'], $item['mres'], $item['sell_value'], $item['source'], $runId, $tripId,
+                $item['power'], $item['armor'], $item['mres'], $item['sell_value'], (int) ($item['card_slots'] ?? 0),
+                $item['source'], $runId, $tripId,
             ],
         );
         $itemId = $this->insertId();
@@ -912,6 +988,37 @@ final class SimRepo
         );
 
         return $itemId;
+    }
+
+    private function insertCard(array $card, ?int $characterId, int $runId, int $tripId, string $status): int
+    {
+        $this->db->insert(
+            'INSERT INTO card_instances (character_id, status, rarity, display_name, monster_code, item_level, bonuses,
+                                         sell_value, source, created_run_id, created_trip_id)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            [
+                $characterId, $status, $card['rarity'], $card['display_name'], $card['monster_code'] ?? null,
+                (int) $card['item_level'], self::dumps($card['bonuses'] ?? []), (int) $card['sell_value'],
+                $card['source'] ?? 'drop', $runId, $tripId,
+            ],
+        );
+
+        return $this->insertId();
+    }
+
+    private function destroyCardsOnItem(int $itemId): void
+    {
+        $rows = $this->all('SELECT card_instance_id FROM item_instance_cards WHERE item_instance_id = ?', [$itemId]);
+        if ($rows === []) {
+            return;
+        }
+        $this->db->delete('DELETE FROM item_instance_cards WHERE item_instance_id = ?', [$itemId]);
+        $ids = array_map(fn ($r) => (int) $r['card_instance_id'], $rows);
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $this->db->update(
+            "UPDATE card_instances SET status = 'destroyed', character_id = NULL WHERE id IN ({$marks})",
+            $ids,
+        );
     }
 
     private function insertAffixes(int $itemId, array $affixes): void
@@ -1066,11 +1173,12 @@ final class SimRepo
     {
         $this->db->insert(
             'INSERT INTO item_instances (template_id, character_id, status, rarity, item_level, display_name, power, armor, mres,
-                                         sell_value, source, created_trip_id)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                                         sell_value, card_slots, source, created_trip_id)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
             [
                 $item['template_id'], $characterId, $status, $item['rarity'], $item['item_level'], $item['display_name'],
-                $item['power'], $item['armor'], $item['mres'], $item['sell_value'], 'chest', $tripId,
+                $item['power'], $item['armor'], $item['mres'], $item['sell_value'], (int) ($item['card_slots'] ?? 0),
+                'chest', $tripId,
             ],
         );
         $itemId = $this->insertId();
@@ -1094,8 +1202,8 @@ final class SimRepo
         $idMap = [];
         foreach ($decision['new_items'] as $item) {
             $this->db->insert(
-                "INSERT INTO item_instances (template_id, character_id, status, rarity, item_level, display_name, power, armor, mres, sell_value, source, created_run_id)
-                 VALUES (?,?,'owned',?,?,?,?,?,?,?,'shop',?)",
+                "INSERT INTO item_instances (template_id, character_id, status, rarity, item_level, display_name, power, armor, mres, sell_value, card_slots, source, created_run_id)
+                 VALUES (?,?,'owned',?,?,?,?,?,?,?,0,'shop',?)",
                 [$item['template_id'], $cid, $item['rarity'], $item['item_level'], $item['display_name'],
                     $item['power'], $item['armor'], $item['mres'], $item['sell_value'], $runId],
             );
@@ -1106,7 +1214,33 @@ final class SimRepo
             if ($itemId === null || $itemId < 0) {
                 continue;
             }
+            $this->destroyCardsOnItem((int) $itemId);
             $this->db->update("UPDATE item_instances SET status = 'sold', character_id = NULL WHERE id = ? AND character_id = ?", [$itemId, $cid]);
+        }
+        foreach ($decision['card_sockets'] ?? [] as $socket) {
+            $itemId = (int) ($socket['item_id'] ?? 0);
+            $cardId = (int) ($socket['card_id'] ?? 0);
+            $slotIndex = (int) ($socket['slot_index'] ?? -1);
+            if ($itemId < 1 || $cardId < 1 || $slotIndex < 0) {
+                continue;
+            }
+            $item = $this->one('SELECT id, card_slots, character_id, status FROM item_instances WHERE id = ?', [$itemId]);
+            $card = $this->one("SELECT id, character_id, status FROM card_instances WHERE id = ?", [$cardId]);
+            if (! $item || ! $card || (int) $item['character_id'] !== $cid || (int) $card['character_id'] !== $cid) {
+                continue;
+            }
+            if ($item['status'] !== 'owned' || $card['status'] !== 'owned' || $slotIndex >= (int) $item['card_slots']) {
+                continue;
+            }
+            $taken = $this->one('SELECT card_instance_id FROM item_instance_cards WHERE item_instance_id = ? AND slot_index = ?', [$itemId, $slotIndex]);
+            if ($taken) {
+                continue;
+            }
+            $this->db->insert(
+                'INSERT INTO item_instance_cards (item_instance_id, slot_index, card_instance_id) VALUES (?,?,?)',
+                [$itemId, $slotIndex, $cardId],
+            );
+            $this->db->update("UPDATE card_instances SET status = 'socketed' WHERE id = ?", [$cardId]);
         }
         $this->db->delete('DELETE FROM character_equipment WHERE character_id = ?', [$cid]);
         foreach ($decision['equipped'] as $slot => $itemId) {
@@ -1149,6 +1283,7 @@ final class SimRepo
                     unspent_points = ?, gold = ?, injury_severity = ?, injury_runs_left = ?,
                     retreat_threshold_pct = ?, potion_threshold_pct = ?,
                     materials = ?, skills = ?, horcrux_tier = ?, horcrux_progress = ?,
+                    daily = ?, systems = ?,
                     row_version = row_version + 1
               WHERE id = ?',
             [
@@ -1158,6 +1293,8 @@ final class SimRepo
                 $materialMap === [] ? null : self::dumps($materialMap),
                 ($decision['skills'] ?? []) === [] ? null : self::dumps($decision['skills']),
                 (int) $horcrux['tier'], (int) $horcrux['progress'],
+                isset($decision['daily']) ? Daily::encode($decision['daily']) : null,
+                isset($decision['systems']) ? Systems::encode($decision['systems']) : null,
                 $cid,
             ],
         );

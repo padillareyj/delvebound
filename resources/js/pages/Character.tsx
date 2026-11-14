@@ -1,11 +1,16 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import clsx from 'clsx';
-import { Backpack, Bot, Crown, Gem, Hammer, Minus, Plus, RotateCcw, Shield, Sparkles, Swords, UserRound } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Backpack, Bot, Crown, Gem, Hammer, Layers, ListTree, Minus, Palette, Plus, RotateCcw, Shield, Sparkles, Swords, UserRound } from 'lucide-react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import { HorcruxBoard, MaterialsBoard, SkillsBoard, type HorcruxView, type MaterialView, type SkillView } from '@/components/GrowthBoard';
+import AdvancedBoard from '@/components/AdvancedBoard';
+import CardsBoard, { type MonsterCard } from '@/components/CardsBoard';
 import CollectionBoard from '@/components/CollectionBoard';
 import ForgeBoard from '@/components/ForgeBoard';
 import InventoryBoard from '@/components/InventoryBoard';
+
+const CharacterModel = lazy(() => import('@/components/CharacterModel'));
+const HeroLookEditor = lazy(() => import('@/components/HeroLookEditor'));
 import { Portrait, TitleBadge } from '@/components/Premium';
 import { Bar, Gold, PageHeader, Panel } from '@/components/ui';
 import { act } from '@/lib/act';
@@ -13,7 +18,7 @@ import { confirmDialog } from '@/lib/dialog';
 import {
     BONUS_LABELS, BONUS_ORDER, DERIVED_LABELS, INJURY_LABELS, STAT_NAMES, bonusLine, derivedDelta, derivedValue, formatDate, money, useTimezone,
 } from '@/lib/format';
-import type { Appearance, Collection, Consumable, Derived, ForgeQuote, Item, PackItem, SealedChest, StatKey, Stats } from '@/types';
+import type { AdvancedSheet, Appearance, Collection, HeroLook, Consumable, Derived, ForgeQuote, Item, PackItem, SealedChest, StatKey, Stats } from '@/types';
 
 interface Props {
     character: {
@@ -34,6 +39,7 @@ interface Props {
         auto_profile: string | null;
         injury_severity: number;
         injury_runs_left: number;
+        look: HeroLook | null;
         row_version: number;
         best_place: string | null;
         created_at: string;
@@ -49,7 +55,7 @@ interface Props {
     caps: Record<string, number>;
     autoProfiles: { code: string; name: string; archetype: string; description: string }[];
     power: number;
-    powerParts: { level: number; growth: number; premium: number };
+    powerParts: { level: number; growth: number; premium: number; systems?: number };
     plainDerived: Required<Derived>;
     bonusSources: { source: string; bonus: Record<string, number> }[];
     appearance: Appearance;
@@ -67,6 +73,8 @@ interface Props {
     capacity: number;
     beltSlots: number;
     forgeQuote: ForgeQuote | null;
+    cardsBag: MonsterCard[];
+    cardBagCap: number;
 }
 
 const TABS = [
@@ -74,8 +82,11 @@ const TABS = [
     { id: 'skills', label: 'Skills', icon: Swords },
     { id: 'horcrux', label: 'Horcrux', icon: Gem },
     { id: 'inventory', label: 'Inventory', icon: Backpack },
+    { id: 'cards', label: 'Cards', icon: Layers },
     { id: 'forge', label: 'Forge', icon: Hammer },
     { id: 'collection', label: 'Collection', icon: Crown },
+    { id: 'detail', label: 'Detail', icon: ListTree },
+    { id: 'look', label: 'Appearance', icon: Palette },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -95,7 +106,7 @@ const BUFF_LABEL: Record<string, string> = { might: '💪 Might', stoneskin: '�
 export default function Character({
     character: c, derived, baseDerived, buffs, perPoint, respecCost, pointPool, baseStat, power,
     skills, horcrux, materials, rowVersion, injury, equipment, inventory, consumables, chests, capacity, beltSlots,
-    forgeQuote,
+    forgeQuote, cardsBag, cardBagCap,
     autoProfiles, powerParts, plainDerived, bonusSources, appearance, cash, collection,
 }: Props) {
     const tz = useTimezone();
@@ -190,6 +201,7 @@ export default function Character({
                             : item.id === 'horcrux' ? `Tier ${horcrux.tier}/${horcrux.max_tier}`
                             : item.id === 'forge' ? 'Combine two pieces'
                             : item.id === 'collection' ? `${ownedPieces.length} owned · ${ownedPieces.filter((p) => p.active).length} active`
+                            : item.id === 'detail' ? 'Combat sheet'
                             : `${inventory.length} gear · ${lootStacks} loot`;
                         return (
                             <button
@@ -424,10 +436,11 @@ export default function Character({
                                 <TitleBadge title={appearance.title} />
                             </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
                             <PowerPart label="Level" value={powerParts.level} />
                             <PowerPart label={`${skillRanks} ranks · tier ${horcrux.tier}`} value={powerParts.growth} />
                             <PowerPart label="Premium" value={powerParts.premium} accent="text-moss-400" />
+                            <PowerPart label="Systems" value={powerParts.systems ?? 0} accent="text-arcane-400" />
                         </div>
                     </Panel>
                     <BonusPanel derived={baseDerived} plain={plainDerived} sources={bonusSources} />
@@ -489,6 +502,19 @@ export default function Character({
                 </div>
                 )}
 
+                {tab === 'detail' && derived.advanced && (
+                    <AdvancedBoard sheet={derived.advanced as AdvancedSheet} derived={derived} />
+                )}
+
+                {tab === 'look' && (
+                    <Panel title="Appearance">
+                        <p className="mb-4 text-sm text-ink-400">Choose how your hero looks in the 3D preview and battle replays. This is cosmetic only and never changes stats.</p>
+                        <Suspense fallback={<div className="h-96 animate-pulse rounded-xl bg-ink-900/40" />}>
+                            <HeroLookEditor saved={c.look} equipment={equipment} rowVersion={c.row_version} />
+                        </Suspense>
+                    </Panel>
+                )}
+
                 {tab === 'skills' && (
                     <SkillsBoard skills={skills} rowVersion={rowVersion} />
                 )}
@@ -499,6 +525,11 @@ export default function Character({
 
                 {tab === 'inventory' && (
                     <div className="space-y-6">
+                        <Panel title="Hero preview">
+                            <Suspense fallback={<div className="h-80 animate-pulse rounded-xl bg-ink-900/40" />}>
+                                <CharacterModel equipment={equipment} look={c.look} />
+                            </Suspense>
+                        </Panel>
                         <InventoryBoard
                             rowVersion={rowVersion}
                             injury={injury}
@@ -512,6 +543,16 @@ export default function Character({
                         />
                         <MaterialsBoard materials={materials} />
                     </div>
+                )}
+
+                {tab === 'cards' && (
+                    <CardsBoard
+                        rowVersion={rowVersion}
+                        cards={cardsBag}
+                        bagCap={cardBagCap}
+                        equipment={equipment}
+                        inventory={inventory}
+                    />
                 )}
 
                 {tab === 'forge' && (

@@ -3,9 +3,13 @@
 namespace App\Services;
 
 use App\Game\Balance;
+use App\Game\Cards;
 use App\Game\Forge;
+use App\Game\ItemArt;
 use App\Game\Growth;
 use App\Game\Premium;
+use App\Game\Systems;
+use App\Game\Daily;
 use App\Game\Progression;
 use App\Game\Rules;
 use App\Game\ShopMath;
@@ -118,17 +122,167 @@ class GameQueries
         ];
     }
 
-    private function bonusFor(array $growth, array $premium, array $balance): array
+    private function systemsState(array|object $char): array
+    {
+        $char = (array) $char;
+
+        return Systems::state($char['systems'] ?? null, Balance::get());
+    }
+
+    private function bagFromMaterials(array $materials): array
+    {
+        $bag = [];
+        foreach ($materials as $mat) {
+            if ((int) ($mat['qty'] ?? 0) > 0) {
+                $bag[$mat['code']] = (int) $mat['qty'];
+            }
+        }
+
+        return $bag;
+    }
+
+    private function systemsView(array $systems, array $materials, array $balance): array
+    {
+        $bag = $this->bagFromMaterials($materials);
+        $jewels = [];
+        foreach ($systems['jewels'] as $element => $level) {
+            $next = $level + 1;
+            $cost = Systems::jewelCost($next, $balance);
+            [$can] = Systems::canRaiseJewel($systems, $bag, $element, $balance);
+            $jewels[] = [
+                'element' => $element,
+                'level' => $level,
+                'max' => (int) $balance['systems']['jewels']['max_level'],
+                'cost' => $level < (int) $balance['systems']['jewels']['max_level'] ? $cost : null,
+                'can' => $can,
+                'per_level' => (object) ($balance['systems']['jewels']['per_level'][$element] ?? []),
+            ];
+        }
+        $exNext = $systems['excellency'] + 1;
+        [$exCan] = Systems::canRaiseExcellency($systems, $bag, $balance);
+        $wingNext = $systems['wing_stars'] + 1;
+        [$wingCan] = Systems::canRaiseWing($systems, $bag, $balance);
+
+        $sigils = [];
+        foreach ($systems['sigils'] as $element => $level) {
+            $next = $level + 1;
+            $cost = Systems::sigilCost($next, $balance);
+            [$can] = Systems::canRaiseSigil($systems, $bag, $element, $balance);
+            $sigils[] = [
+                'element' => $element,
+                'level' => $level,
+                'max' => (int) $balance['systems']['sigils']['max_level'],
+                'cost' => $level < (int) $balance['systems']['sigils']['max_level'] ? $cost : null,
+                'can' => $can,
+                'per_level' => (object) ($balance['systems']['sigils']['per_level'][$element] ?? []),
+            ];
+        }
+        $nexusNext = $systems['sigil_nexus'] + 1;
+        [$nexusCan] = Systems::canRaiseNexus($systems, $bag, $balance);
+        $sigilSum = Systems::sigilSum($systems);
+        $nexusNeedSum = (int) $balance['systems']['sigils']['nexus_min_sigil_sum'] * $nexusNext;
+
+        return [
+            'jewels' => $jewels,
+            'excellency' => [
+                'level' => $systems['excellency'],
+                'max' => (int) $balance['systems']['excellency']['max_level'],
+                'cost' => $systems['excellency'] < (int) $balance['systems']['excellency']['max_level'] ? Systems::excellencyCost($exNext, $balance) : null,
+                'can' => $exCan,
+                'per_level' => (object) $balance['systems']['excellency']['per_level'],
+                'material' => $balance['systems']['excellency']['material'],
+            ],
+            'wing_stars' => [
+                'level' => $systems['wing_stars'],
+                'max' => (int) $balance['systems']['wing_stars']['max_level'],
+                'cost' => $systems['wing_stars'] < (int) $balance['systems']['wing_stars']['max_level'] ? Systems::wingCost($wingNext, $balance) : null,
+                'can' => $wingCan,
+                'per_level' => (object) $balance['systems']['wing_stars']['per_level'],
+                'material' => $balance['systems']['wing_stars']['material'],
+            ],
+            'sigils' => $sigils,
+            'sigil_nexus' => [
+                'level' => $systems['sigil_nexus'],
+                'max' => (int) $balance['systems']['sigils']['nexus_max_level'],
+                'cost' => $systems['sigil_nexus'] < (int) $balance['systems']['sigils']['nexus_max_level'] ? Systems::nexusCost($nexusNext, $balance) : null,
+                'can' => $nexusCan,
+                'per_level' => (object) $balance['systems']['sigils']['nexus_per_level'],
+                'material' => $balance['systems']['sigils']['material'],
+                'sigil_sum' => $sigilSum,
+                'need_sum' => $systems['sigil_nexus'] < (int) $balance['systems']['sigils']['nexus_max_level'] ? $nexusNeedSum : null,
+            ],
+            'bag' => [
+                'jewel_dust' => (int) ($bag['jewel_dust'] ?? 0),
+                'excellent_stone' => (int) ($bag['excellent_stone'] ?? 0),
+                'wing_feather' => (int) ($bag['wing_feather'] ?? 0),
+                'sigil_ink' => (int) ($bag['sigil_ink'] ?? 0),
+            ],
+            'bonus' => (object) array_filter(Systems::bonuses($systems, $balance)),
+            'power' => Systems::power($systems, $balance),
+        ];
+    }
+
+    private function dailyDay(array $balance): string
+    {
+        return Daily::dayKey(new \DateTimeImmutable('now', new \DateTimeZone('UTC')), $balance['daily']['timezone']);
+    }
+
+    private function dailyState(array|object $char, array $balance): array
+    {
+        $char = (array) $char;
+
+        return Daily::state($char['daily'] ?? null, $this->dailyDay($balance), $balance);
+    }
+
+    private function dailySummary(array|object $char, array $balance): array
+    {
+        $state = $this->dailyState($char, $balance);
+        $board = Daily::board($state, $balance);
+        $ready = count(array_filter($board, fn ($q) => $q['ready']));
+        $claimed = count(array_filter($board, fn ($q) => $q['claimed']));
+
+        return [
+            'day' => $state['day'],
+            'activity' => Daily::activity($state, $balance),
+            'ready' => $ready,
+            'claimed' => $claimed,
+            'total' => count($board),
+        ];
+    }
+
+    public function questsPage(int $accountId): array
+    {
+        $balance = Balance::get();
+        $char = $this->character($accountId);
+        $growth = $this->growthState((int) $char['id']);
+        $state = $this->dailyState($char, $balance);
+        $systems = $this->systemsState($char);
+
+        return [
+            'rowVersion' => (int) $char['row_version'],
+            'day' => $state['day'],
+            'timezone' => $balance['daily']['timezone'],
+            'activity' => Daily::activity($state, $balance),
+            'quests' => Daily::board($state, $balance),
+            'chests' => Daily::chests($state, $balance),
+            'systems' => $this->systemsView($systems, $growth['materials'], $balance),
+            'materials' => array_values(array_filter($growth['materials'], fn ($m) => $m['kind'] === 'system' || in_array($m['code'], ['jewel_dust', 'excellent_stone', 'wing_feather'], true))),
+        ];
+    }
+
+    private function bonusFor(array $growth, array $premium, array $systems, array $balance, array $equipment = []): array
     {
         return Stats::mergeBonus(
             Growth::bonuses($growth['ranks'], $growth['horcrux']['tier'], $balance),
             Premium::bonuses($premium['boosts']),
+            Systems::bonuses($systems, $balance),
+            Cards::bonusesFromEquipment($equipment),
         );
     }
 
-    private function powerFor(int $level, array $growth, array $premium, array $balance): int
+    private function powerFor(int $level, array $growth, array $premium, array $systems, array $balance): int
     {
-        return Growth::powerLevel($level, $growth['ranks'], $growth['horcrux']['tier'], $balance, Premium::power($premium['boosts']));
+        return Growth::powerLevel($level, $growth['ranks'], $growth['horcrux']['tier'], $balance, Premium::power($premium['boosts']) + Systems::power($systems, $balance));
     }
 
     public function character(int $accountId): array
@@ -175,8 +329,15 @@ class GameQueries
         return $grouped;
     }
 
-    private function itemView(object $row, array $affixes): array
+    private function itemView(object $row, array $affixes, array $cardsByItem = []): array
     {
+        $slots = (int) ($row->card_slots ?? 0);
+        $socketed = $cardsByItem[(int) $row->id] ?? [];
+        $cards = [];
+        for ($i = 0; $i < $slots; $i++) {
+            $cards[] = $socketed[$i] ?? null;
+        }
+
         return [
             'id' => (int) $row->id,
             'name' => $row->display_name,
@@ -195,11 +356,104 @@ class GameQueries
             'armor' => (int) $row->armor,
             'mres' => (int) $row->mres,
             'sell_value' => (int) $row->sell_value,
+            'card_slots' => $slots,
+            'cards' => $cards,
             'source' => $row->source,
             'implicit' => self::json($row->implicit_mods) ?: [],
             'affixes' => $affixes[(int) $row->id] ?? [],
             'description' => $row->description,
+            'icon' => self::gearIcon($row),
         ];
+    }
+
+    /** @return array<int, array<int, array>> itemId → slotIndex → card */
+    private function cardsFor(array $itemIds): array
+    {
+        if ($itemIds === []) {
+            return [];
+        }
+        $grouped = [];
+        foreach (DB::table('item_instance_cards as iic')
+            ->join('card_instances as c', 'c.id', '=', 'iic.card_instance_id')
+            ->whereIn('iic.item_instance_id', $itemIds)
+            ->orderBy('iic.slot_index')
+            ->get(['iic.item_instance_id', 'iic.slot_index', 'c.id', 'c.display_name', 'c.rarity', 'c.item_level', 'c.bonuses', 'c.sell_value', 'c.monster_code', 'c.source']) as $row) {
+            $grouped[(int) $row->item_instance_id][(int) $row->slot_index] = [
+                'id' => (int) $row->id,
+                'display_name' => $row->display_name,
+                'rarity' => $row->rarity,
+                'item_level' => (int) $row->item_level,
+                'bonuses' => self::json($row->bonuses) ?: [],
+                'sell_value' => (int) $row->sell_value,
+                'monster_code' => $row->monster_code,
+                'source' => $row->source,
+                'status' => 'socketed',
+            ];
+        }
+
+        return $grouped;
+    }
+
+    /** @return list<array> */
+    private function looseCards(int $characterId): array
+    {
+        return DB::table('card_instances')
+            ->where('character_id', $characterId)
+            ->where('status', 'owned')
+            ->orderByDesc('item_level')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'display_name' => $row->display_name,
+                'rarity' => $row->rarity,
+                'item_level' => (int) $row->item_level,
+                'bonuses' => self::json($row->bonuses) ?: [],
+                'sell_value' => (int) $row->sell_value,
+                'monster_code' => $row->monster_code,
+                'source' => $row->source,
+                'status' => 'owned',
+            ])
+            ->all();
+    }
+
+    /** @param  object|array<string, mixed>  $row */
+    private static function gearIcon(object|array $row): string
+    {
+        $row = (array) $row;
+
+        return ItemArt::icon([
+            'icon' => $row['template_icon'] ?? null,
+            'code' => $row['code'] ?? $row['item_code'] ?? null,
+            'name' => $row['template_name'] ?? $row['item_name'] ?? null,
+            'display_name' => $row['display_name'] ?? null,
+            'slot' => $row['template_slot'] ?? $row['slot'] ?? null,
+            'item_type' => $row['item_type'] ?? null,
+            'two_handed' => $row['two_handed'] ?? false,
+            'rarity' => $row['rarity'] ?? null,
+        ]);
+    }
+
+    /** Fill icon stems on a stored mail payload so older letters still draw their loot. */
+    private static function withItemIcons(?array $payload): ?array
+    {
+        if ($payload === null) {
+            return null;
+        }
+        foreach (['items', 'lost_items'] as $key) {
+            if (! isset($payload[$key]) || ! is_array($payload[$key])) {
+                continue;
+            }
+            foreach ($payload[$key] as $index => $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $item['icon'] = ItemArt::icon($item);
+                $payload[$key][$index] = $item;
+            }
+        }
+
+        return $payload;
     }
 
     private function itemQuery()
@@ -207,7 +461,7 @@ class GameQueries
         return DB::table('item_instances as ii')
             ->join('item_templates as it', 'it.id', '=', 'ii.template_id')
             ->select('ii.*', 'it.code', 'it.name as template_name', 'it.slot as template_slot', 'it.item_type',
-                'it.scaling_stat', 'it.two_handed', 'it.implicit_mods', 'it.req_level', 'it.description');
+                'it.scaling_stat', 'it.two_handed', 'it.implicit_mods', 'it.req_level', 'it.description', 'it.icon as template_icon');
     }
 
     /** @return array<string, array> equipped items keyed by equipment slot */
@@ -218,10 +472,12 @@ class GameQueries
             ->addSelect('ce.slot as equip_slot')
             ->where('ce.character_id', $characterId)
             ->get();
-        $affixes = $this->affixesFor($rows->pluck('id')->map(fn ($id) => (int) $id)->all());
+        $ids = $rows->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $affixes = $this->affixesFor($ids);
+        $cards = $this->cardsFor($ids);
         $out = [];
         foreach ($rows as $row) {
-            $out[$row->equip_slot] = $this->itemView($row, $affixes);
+            $out[$row->equip_slot] = $this->itemView($row, $affixes, $cards);
         }
 
         return $out;
@@ -238,9 +494,11 @@ class GameQueries
             ->orderByDesc('ii.item_level')
             ->orderByDesc('ii.id')
             ->get();
-        $affixes = $this->affixesFor($rows->pluck('id')->map(fn ($id) => (int) $id)->all());
+        $ids = $rows->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $affixes = $this->affixesFor($ids);
+        $cards = $this->cardsFor($ids);
 
-        return $rows->map(fn ($row) => $this->itemView($row, $affixes))->all();
+        return $rows->map(fn ($row) => $this->itemView($row, $affixes, $cards))->all();
     }
 
     /**
@@ -313,6 +571,11 @@ class GameQueries
                 'req_level' => (int) $r->req_level,
                 'sell_price' => (int) $r->sell_price,
                 'description' => $r->description,
+                'icon' => ItemArt::consumable([
+                    'code' => $r->code,
+                    'name' => $r->name,
+                    'effect_type' => $r->effect_type,
+                ]),
             ])->all();
     }
 
@@ -403,6 +666,7 @@ class GameQueries
         $atCap = $level >= $this->levelCap($balance);
         $growth = $this->growthState((int) $char['id']);
         $premium = $this->premiumState($char);
+        $systems = $this->systemsState($char);
 
         return [
             'id' => (int) $char['id'],
@@ -410,7 +674,7 @@ class GameQueries
             'title' => $this->appearance($premium)['title'],
             'cash' => $premium['cash'],
             'level' => $level,
-            'power' => $this->powerFor($level, $growth, $premium, $balance),
+            'power' => $this->powerFor($level, $growth, $premium, $systems, $balance),
             'xp' => (int) $char['xp'],
             'xp_to_next' => $atCap ? null : Progression::xpToNext($level, $balance),
             'gold' => (int) $char['gold'],
@@ -452,7 +716,8 @@ class GameQueries
         $consumables = $this->consumables($cid);
         $equipment = $this->equipment($cid);
         $growth = $this->growthState($cid);
-        $bonus = $this->bonusFor($growth, $this->premiumState($char), Balance::get());
+        $systems = $this->systemsState($char);
+        $bonus = $this->bonusFor($growth, $this->premiumState($char), $systems, Balance::get(), array_values($equipment));
         $derived = Stats::derived($this->stats($char), (int) $char['level'], array_values($equipment), null, (int) $char['injury_severity'], [], $bonus);
 
         return [
@@ -515,10 +780,12 @@ class GameQueries
         $injury = (int) $char['injury_severity'];
         $growth = $this->growthState($cid);
         $premium = $this->premiumState($char);
-        $bonus = $this->bonusFor($growth, $premium, $balance);
+        $systems = $this->systemsState($char);
+        $bonus = $this->bonusFor($growth, $premium, $systems, $balance, $gear);
         $derived = Stats::derived($stats, $level, $gear, $balance, $injury, $buffs, $bonus);
         $base = Stats::derived($stats, $level, $gear, $balance, $injury, [], $bonus);
         $plain = Stats::derived($stats, $level, $gear, $balance, $injury, [], []);
+        $looseCards = $this->looseCards($cid);
 
         $perPoint = [];
         foreach (Stats::PRIMARY as $stat) {
@@ -552,6 +819,7 @@ class GameQueries
                 'auto_repeat' => (bool) $char['auto_repeat'],
                 'auto_mode' => (bool) $char['auto_mode'],
                 'auto_place' => ($char['auto_place'] ?? 'profile') === 'best' ? 'best' : 'profile',
+                'look' => HeroLook::decode($char['look'] ?? null),
                 'auto_profile' => $char['auto_profile_id']
                     ? DB::table('bot_profiles')->where('id', $char['auto_profile_id'])->value('code')
                     : null,
@@ -570,24 +838,31 @@ class GameQueries
             'pointPool' => Progression::pointPool($level, $balance),
             'baseStat' => (int) $balance['character']['base_stat'],
             'caps' => array_intersect_key($balance['derived'], array_flip(['crit_cap', 'dodge_cap', 'regen_cap', 'luck_cap', 'lifesteal_cap', 'penetration_cap', 'dmg_reduction_cap', 'xp_bonus_cap'])),
-            'power' => $this->powerFor($level, $growth, $premium, $balance),
+            'power' => $this->powerFor($level, $growth, $premium, $systems, $balance),
             'powerParts' => [
                 'level' => (int) $balance['growth']['power_per_level'] * $level,
                 'growth' => Growth::powerLevel(0, $growth['ranks'], $growth['horcrux']['tier'], $balance),
                 'premium' => Premium::power($premium['boosts']),
+                'systems' => Systems::power($systems, $balance),
             ],
             'plainDerived' => $plain,
             'bonusSources' => [
                 ['source' => 'Skills', 'bonus' => (object) array_filter(Growth::bonuses($growth['ranks'], 0, $balance))],
                 ['source' => 'Horcrux', 'bonus' => (object) array_filter(Growth::bonuses([], $growth['horcrux']['tier'], $balance))],
                 ['source' => 'Premium', 'bonus' => (object) array_filter(Premium::bonuses($premium['boosts']))],
+                ['source' => 'Systems', 'bonus' => (object) array_filter(Systems::bonuses($systems, $balance))],
+                ['source' => 'Cards', 'bonus' => (object) array_filter(Cards::bonusesFromEquipment($gear))],
             ],
             'appearance' => $this->appearance($premium),
             'cash' => $premium['cash'],
             'collection' => $this->collection($premium),
+            'systems' => $this->systemsView($systems, $growth['materials'], $balance),
+            'dailySummary' => $this->dailySummary($char, $balance),
             'skills' => $growth['skills'],
             'horcrux' => $growth['horcrux'],
             'materials' => $growth['materials'],
+            'cardsBag' => $looseCards,
+            'cardBagCap' => (int) $balance['cards']['bag_cap'],
             'autoProfiles' => DB::table('bot_profiles')->orderBy('id')->get(['code', 'name', 'archetype', 'description'])
                 ->map(fn ($row) => [
                     'code' => $row->code,
@@ -615,7 +890,8 @@ class GameQueries
         $injury = (int) $char['injury_severity'];
         $growth = $this->growthState($characterId);
         $premium = $this->premiumState($char);
-        $bonus = $this->bonusFor($growth, $premium, $balance);
+        $systems = $this->systemsState($char);
+        $bonus = $this->bonusFor($growth, $premium, $systems, $balance, $gear);
         $derived = Stats::derived($stats, $level, $gear, $balance, $injury, $buffs, $bonus);
         $base = Stats::derived($stats, $level, $gear, $balance, $injury, [], $bonus);
         $bestPlace = $char['best_place_id'] ? $this->place((int) $char['best_place_id']) : null;
@@ -652,11 +928,35 @@ class GameQueries
             'derived' => $derived,
             'baseDerived' => $base,
             'buffs' => $buffs,
-            'power' => $this->powerFor($level, $growth, $premium, $balance),
+            'power' => $this->powerFor($level, $growth, $premium, $systems, $balance),
             'appearance' => $this->appearance($premium),
             'skills' => $skills,
             'horcrux' => $growth['horcrux'],
             'equipment' => $equipment === [] ? (object) [] : $equipment,
+            'history' => (bool) $char['is_bot']
+                ? DB::table('trips as t')
+                    ->join('places as p', 'p.id', '=', 't.place_id')
+                    ->leftJoin('mail as m', function ($join) {
+                        $join->on('m.trip_id', '=', 't.id')
+                            ->where('m.mail_type', 'trip_report')
+                            ->whereNull('m.deleted_at');
+                    })
+                    ->where('t.character_id', $characterId)
+                    ->orderByDesc('t.id')
+                    ->limit(12)
+                    ->get(['t.id', 't.outcome', 't.xp_gained', 't.gold_gained', 't.created_at',
+                        'p.name as place', 'm.subject as report_subject', 'm.body_text as report_body'])
+                    ->map(fn ($trip) => [
+                        'id' => (int) $trip->id,
+                        'outcome' => $trip->outcome,
+                        'xp' => (int) $trip->xp_gained,
+                        'gold' => (int) $trip->gold_gained,
+                        'created_at' => self::utc($trip->created_at),
+                        'place' => $trip->place,
+                        'report_subject' => $trip->report_subject,
+                        'report_body' => $trip->report_body,
+                    ])->all()
+                : [],
         ];
     }
 
@@ -887,8 +1187,8 @@ class GameQueries
             ->where('sl.is_active', 1)
             ->orderBy('sl.sort_order')->orderBy('sl.id')
             ->get(['sl.id', 'sl.kind', 'sl.price', 'sl.min_level', 'sl.consumable_id',
-                'it.name as item_name', 'it.slot', 'it.item_type', 'it.scaling_stat', 'it.two_handed', 'it.base_power',
-                'it.base_armor', 'it.base_mres', 'it.implicit_mods', 'it.description as item_desc',
+                'it.code as item_code', 'it.name as item_name', 'it.slot', 'it.item_type', 'it.scaling_stat', 'it.two_handed', 'it.base_power',
+                'it.base_armor', 'it.base_mres', 'it.implicit_mods', 'it.description as item_desc', 'it.icon as template_icon',
                 'ct.name as cons_name', 'ct.code as cons_code', 'ct.effect_type', 'ct.effect_value', 'ct.use_trigger',
                 'ct.description as cons_desc'])
             ->map(fn ($l) => [
@@ -902,6 +1202,9 @@ class GameQueries
                 'item_type' => $l->item_type,
                 'scaling_stat' => $l->scaling_stat,
                 'two_handed' => (bool) $l->two_handed,
+                'icon' => $l->kind === 'gear'
+                    ? self::gearIcon($l)
+                    : ItemArt::consumable(['code' => $l->cons_code, 'name' => $l->cons_name, 'effect_type' => $l->effect_type]),
                 'power' => (int) $l->base_power,
                 'armor' => (int) $l->base_armor,
                 'mres' => (int) $l->base_mres,
@@ -957,8 +1260,9 @@ class GameQueries
         $gear = array_values($this->equipment($cid));
         $growth = $this->growthState($cid);
         $premium = $this->premiumState($char);
+        $systems = $this->systemsState($char);
         $catalog = $this->premiumCatalog();
-        $current = Stats::derived($stats, $level, $gear, $balance, 0, [], $this->bonusFor($growth, $premium, $balance));
+        $current = Stats::derived($stats, $level, $gear, $balance, 0, [], $this->bonusFor($growth, $premium, $systems, $balance, $gear));
 
         $items = [];
         foreach ($catalog as $item) {
@@ -972,7 +1276,7 @@ class GameQueries
             if ($item['category'] !== Premium::BUNDLE && ! $active) {
                 $trial = $premium;
                 Premium::wear($trial, $item['code'], $catalog);
-                $after = Stats::derived($stats, $level, $gear, $balance, 0, [], $this->bonusFor($growth, $trial, $balance));
+                $after = Stats::derived($stats, $level, $gear, $balance, 0, [], $this->bonusFor($growth, $trial, $systems, $balance, $gear));
                 foreach (self::PREMIUM_DELTA_KEYS as $key) {
                     $change = round($after[$key] - $current[$key], 4);
                     if ($change != 0) {
@@ -997,7 +1301,7 @@ class GameQueries
             'cashLabel' => Premium::money($premium['cash']),
             'startingCash' => Premium::money((int) $balance['premium']['starting_cash_cents']),
             'gold' => (int) $char['gold'],
-            'power' => $this->powerFor($level, $growth, $premium, $balance),
+            'power' => $this->powerFor($level, $growth, $premium, $systems, $balance),
             'premiumPower' => Premium::power($premium['boosts']),
             'categories' => [...$balance['premium']['categories'], Premium::BUNDLE],
             'items' => $items,
@@ -1168,7 +1472,7 @@ class GameQueries
 
         return $row + [
             'body' => $m->body_text,
-            'payload' => self::json($m->payload),
+            'payload' => self::withItemIcons(self::json($m->payload)),
             'trip_id' => $m->trip_id === null ? null : (int) $m->trip_id,
             'run_id' => $m->run_id === null ? null : (int) $m->run_id,
             'newer_id' => $newer === null ? null : (int) $newer,
@@ -1203,19 +1507,27 @@ class GameQueries
         return ['status' => $box->status, 'rolls' => (int) $box->rolls];
     }
 
-    public function trip(int $accountId, int $tripId): array
+    public function trip(?int $accountId, int $tripId): array
     {
         $t = DB::table('trips as t')->join('characters as c', 'c.id', '=', 't.character_id')
             ->join('places as p', 'p.id', '=', 't.place_id')
-            ->where('t.id', $tripId)->where('c.account_id', $accountId)
-            ->first(['t.*', 'c.name as hero', 'p.name as place_name', 'p.code as place_code', 'p.place_type',
-                'p.rec_min_level', 'p.rec_max_level']);
+            ->where('t.id', $tripId)
+            ->where(function ($query) use ($accountId) {
+                $query->where('c.is_bot', 1);
+                if ($accountId !== null) {
+                    $query->orWhere('c.account_id', $accountId);
+                }
+            })
+            ->first(['t.*', 'c.name as hero', 'c.look as hero_look', 'p.name as place_name', 'p.code as place_code', 'p.place_type',
+                'p.rec_min_level', 'p.rec_max_level', 'c.id as character_id', 'c.is_bot']);
         if (! $t) {
             throw new NotFoundHttpException;
         }
         $loot = DB::table('trip_loot as tl')->join('item_instances as ii', 'ii.id', '=', 'tl.item_instance_id')
+            ->join('item_templates as it', 'it.id', '=', 'ii.template_id')
             ->where('tl.trip_id', $tripId)
-            ->get(['tl.kept', 'tl.encounter_seq', 'ii.id', 'ii.display_name', 'ii.rarity', 'ii.item_level', 'ii.status', 'ii.source'])
+            ->get(['tl.kept', 'tl.encounter_seq', 'ii.id', 'ii.display_name', 'ii.rarity', 'ii.item_level', 'ii.status', 'ii.source',
+                'it.code', 'it.name as template_name', 'it.slot', 'it.item_type', 'it.two_handed', 'it.icon as template_icon'])
             ->map(fn ($l) => [
                 'id' => (int) $l->id,
                 'name' => $l->display_name,
@@ -1225,6 +1537,7 @@ class GameQueries
                 'status' => $l->status,
                 'source' => $l->source,
                 'encounter_seq' => $l->encounter_seq === null ? null : (int) $l->encounter_seq,
+                'icon' => self::gearIcon($l),
             ])->all();
         $encounters = DB::table('trip_encounters')->where('trip_id', $tripId)->orderBy('seq')->get()
             ->map(function ($e) {
@@ -1252,6 +1565,8 @@ class GameQueries
         return [
             'id' => (int) $t->id,
             'run_id' => (int) $t->run_id,
+            'character_id' => (int) $t->character_id,
+            'is_bot' => (bool) $t->is_bot,
             'hero' => $t->hero,
             'place' => ['name' => $t->place_name, 'code' => $t->place_code, 'type' => $t->place_type,
                 'rec' => [(int) $t->rec_min_level, (int) $t->rec_max_level]],
@@ -1268,6 +1583,8 @@ class GameQueries
             'boss_killed' => (bool) $t->boss_killed,
             'created_at' => self::utc($t->created_at),
             'derived' => $snapshot['derived'] ?? null,
+            'equipment' => $this->tripGear($snapshot),
+            'look' => HeroLook::decode($t->hero_look ?? null),
             'buffs' => $snapshot['buffs'] ?? [],
             'consumables_used' => self::json($t->consumables_used) ?: [],
             'encounters' => $encounters,
@@ -1275,6 +1592,41 @@ class GameQueries
             'chest' => $this->tripChest($tripId),
             'mail_id' => $mailId === null ? null : (int) $mailId,
         ];
+    }
+
+    /**
+     * Weapon and off-hand the hero carried on this trip, from the stored trip snapshot (read-only; used by
+     * the client-side 3D replay). Items sold or destroyed since then are simply left out.
+     */
+    private function tripGear(array $snapshot): array|object
+    {
+        $slots = [];
+        foreach ($snapshot['equipment'] ?? [] as $row) {
+            if (is_array($row) && isset($row['id'], $row['slot']) && in_array($row['slot'], ['weapon', 'offhand'], true)) {
+                $slots[(int) $row['id']] = $row['slot'];
+            }
+        }
+        if ($slots === []) {
+            return (object) [];
+        }
+        $gear = [];
+        $rows = DB::table('item_instances as ii')->join('item_templates as it', 'it.id', '=', 'ii.template_id')
+            ->whereIn('ii.id', array_keys($slots))
+            ->get(['ii.id', 'ii.display_name', 'ii.rarity', 'it.code', 'it.name as template_name', 'it.slot', 'it.item_type',
+                'it.two_handed', 'it.icon as template_icon']);
+        foreach ($rows as $l) {
+            $slot = $slots[(int) $l->id];
+            $gear[$slot] = [
+                'id' => (int) $l->id,
+                'name' => $l->display_name,
+                'code' => $l->code,
+                'slot' => $slot,
+                'two_handed' => (bool) $l->two_handed,
+                'icon' => self::gearIcon($l),
+            ];
+        }
+
+        return $gear === [] ? (object) [] : $gear;
     }
 
     /**
@@ -1345,7 +1697,7 @@ class GameQueries
                 'glyphs' => array_values(array_map(fn ($g) => $g['glyph'], array_filter($look['gear'], fn ($g) => $g['category'] !== 'title'))),
                 'is_bot' => (bool) $r->is_bot,
                 'level' => (int) $r->level,
-                'power' => Growth::powerLevel((int) $r->level, $ranks, (int) $r->horcrux_tier, $balance, Premium::power($premium['boosts'])),
+                'power' => Growth::powerLevel((int) $r->level, $ranks, (int) $r->horcrux_tier, $balance, Premium::power($premium['boosts']) + Systems::power($this->systemsState($r), $balance)),
                 'total_xp' => (int) $r->total_xp,
                 'gold' => (int) $r->gold,
                 'kills' => (int) $r->kills,

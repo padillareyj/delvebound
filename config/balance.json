@@ -117,6 +117,70 @@
       {"name": "legendary", "weight": 5, "affixes": 4, "stat_mult": 1.5, "value_mult": 30}
     ]
   },
+  "cards": {
+    "drop_chance_base": 0.04,
+    "luk_drop_bonus": 0.002,
+    "boss_drop_mult": 3.0,
+    "drop_chance_cap": 0.35,
+    "bag_cap": 40,
+    "bot_socket_per_run": 3,
+    "max_slots": 3,
+    "slot_chances": {
+      "common": {"0": 92, "1": 8},
+      "uncommon": {"0": 70, "1": 28, "2": 2},
+      "rare": {"0": 40, "1": 45, "2": 14, "3": 1},
+      "epic": {"0": 15, "1": 40, "2": 35, "3": 10},
+      "legendary": {"0": 5, "1": 25, "2": 45, "3": 25}
+    },
+    "slot_luck_bonus": 0.15,
+    "rarity": [
+      {"name": "common", "weight": 550, "affixes": 1, "value_mult": 1},
+      {"name": "uncommon", "weight": 260, "affixes": 1, "value_mult": 2},
+      {"name": "rare", "weight": 130, "affixes": 2, "value_mult": 4},
+      {"name": "epic", "weight": 45, "affixes": 2, "value_mult": 10},
+      {"name": "legendary", "weight": 15, "affixes": 2, "value_mult": 25}
+    ],
+    "bonus_pool": [
+      {"stat_key": "hp", "min": 8, "max": 18, "per_ilvl": 1.2},
+      {"stat_key": "attack", "min": 2, "max": 5, "per_ilvl": 0.35},
+      {"stat_key": "defense", "min": 2, "max": 5, "per_ilvl": 0.3},
+      {"stat_key": "mres", "min": 2, "max": 5, "per_ilvl": 0.3},
+      {"stat_key": "speed", "min": 1, "max": 3, "per_ilvl": 0.15},
+      {"stat_key": "crit_pct", "min": 0.5, "max": 1.5, "per_ilvl": 0.08},
+      {"stat_key": "crit_dmg_pct", "min": 1.0, "max": 3.0, "per_ilvl": 0.12},
+      {"stat_key": "dodge_pct", "min": 0.4, "max": 1.2, "per_ilvl": 0.06},
+      {"stat_key": "magic_find_pct", "min": 1.0, "max": 3.0, "per_ilvl": 0.15},
+      {"stat_key": "gold_find_pct", "min": 1.0, "max": 3.0, "per_ilvl": 0.15},
+      {"stat_key": "hp_pct", "min": 0.5, "max": 1.5, "per_ilvl": 0.05},
+      {"stat_key": "attack_pct", "min": 0.4, "max": 1.2, "per_ilvl": 0.04},
+      {"stat_key": "defense_pct", "min": 0.4, "max": 1.2, "per_ilvl": 0.04},
+      {"stat_key": "lifesteal_pct", "min": 0.3, "max": 1.0, "per_ilvl": 0.03},
+      {"stat_key": "penetration_pct", "min": 0.4, "max": 1.2, "per_ilvl": 0.04},
+      {"stat_key": "dmg_reduction_pct", "min": 0.3, "max": 1.0, "per_ilvl": 0.03},
+      {"stat_key": "xp_pct", "min": 0.5, "max": 1.5, "per_ilvl": 0.05}
+    ],
+    "sell_base": 5,
+    "sell_per_ilvl": 0.08,
+    "score_weights": {
+      "hp": 0.05,
+      "attack": 1.0,
+      "defense": 0.8,
+      "mres": 0.7,
+      "speed": 0.6,
+      "crit_pct": 1.2,
+      "crit_dmg_pct": 0.8,
+      "dodge_pct": 1.0,
+      "magic_find_pct": 0.5,
+      "gold_find_pct": 0.4,
+      "hp_pct": 1.5,
+      "attack_pct": 2.0,
+      "defense_pct": 1.5,
+      "lifesteal_pct": 1.8,
+      "penetration_pct": 1.6,
+      "dmg_reduction_pct": 1.6,
+      "xp_pct": 0.8
+    }
+  },
   "arena": {
     "win_gold_per_level": 8,
     "win_xp_per_level": 6,
@@ -299,5 +363,96 @@
     "masterpiece_luck": 0.8,
     "masterpiece_ilvl_bonus": 1,
     "template_near": 10
+  },
+  "daily": {
+    "timezone": "Asia/Bangkok",
+    "quests": [
+      {"code": "login", "name": "Report to camp", "blurb": "Check in at the quest board.", "type": "login", "target": 1, "activity": 10, "rewards": {"jewel_dust": 1}},
+      {"code": "trips_1", "name": "One expedition", "blurb": "Return from any trip that left town.", "type": "trips", "target": 1, "activity": 15, "rewards": {"jewel_dust": 2}},
+      {"code": "trips_3", "name": "Three expeditions", "blurb": "Leave town three times today.", "type": "trips", "target": 3, "activity": 20, "rewards": {"excellent_stone": 1}},
+      {"code": "kills_10", "name": "Slay ten foes", "blurb": "Win encounters against ten monsters.", "type": "kills", "target": 10, "activity": 15, "rewards": {"jewel_dust": 2, "sigil_ink": 1}},
+      {"code": "clear_1", "name": "Clear a place", "blurb": "Finish every encounter at a destination.", "type": "clears", "target": 1, "activity": 20, "rewards": {"wing_feather": 1, "sigil_ink": 1}},
+      {"code": "gold_100", "name": "Bring back gold", "blurb": "Earn 100 gold from expeditions today.", "type": "gold", "target": 100, "activity": 10, "rewards": {"jewel_dust": 1}},
+      {"code": "arena_1", "name": "Enter the arena", "blurb": "Fight in today's bracket (a bye still counts).", "type": "arena", "target": 1, "activity": 15, "rewards": {"excellent_stone": 1, "sigil_ink": 1}}
+    ],
+    "activity_chests": [
+      {"at": 30, "rewards": {"jewel_dust": 3, "sigil_ink": 1}},
+      {"at": 60, "rewards": {"excellent_stone": 1, "jewel_dust": 2, "sigil_ink": 2}},
+      {"at": 100, "rewards": {"wing_feather": 1, "jewel_dust": 3, "excellent_stone": 1, "sigil_ink": 3}}
+    ]
+  },
+  "systems": {
+    "power_per_jewel_level": 3,
+    "power_per_excellency": 4,
+    "power_per_wing_star": 5,
+    "power_per_sigil_level": 4,
+    "power_per_sigil_nexus": 6,
+    "bot_upgrades_per_run": 2,
+    "jewels": {
+      "max_level": 10,
+      "cost_base": 1,
+      "cost_per_level": 1,
+      "material": "jewel_dust",
+      "per_level": {
+        "fire": {"fire_atk": 25, "fire_dmg_bonus_pct": 1.5, "fire_crit_pct": 2.0, "fire_penetration": 8},
+        "water": {"water_atk": 25, "water_dmg_bonus_pct": 1.5, "water_crit_pct": 2.0, "dmg_resist_pct": 0.6},
+        "thunder": {"thunder_atk": 25, "thunder_dmg_bonus_pct": 1.5, "thunder_crit_pct": 2.0, "hit_bonus_pct": 0.8},
+        "earth": {"earth_atk": 25, "earth_def": 20, "earth_dmg_bonus_pct": 1.2, "earth_resistance": 12},
+        "wind": {"wind_atk": 25, "wind_dmg_bonus_pct": 1.5, "wind_crit_pct": 2.0, "lucky_resist_pct": 0.7}
+      }
+    },
+    "excellency": {
+      "max_level": 20,
+      "cost_base": 1,
+      "cost_per_level": 1,
+      "material": "excellent_stone",
+      "per_level": {
+        "excellency_bonus_pct": 1.5,
+        "excellency_resist_pct": 1.0,
+        "hit_bonus_pct": 1.0,
+        "ignore_defense_pct": 0.5,
+        "final_dmg_bonus_pct": 0.4
+      }
+    },
+    "wing_stars": {
+      "max_level": 10,
+      "cost_base": 1,
+      "cost_per_level": 1,
+      "material": "wing_feather",
+      "per_level": {
+        "dmg_resist_pct": 1.0,
+        "dmg_resist": 15,
+        "true_damage": 80,
+        "damage_support_pct": 0.8,
+        "double_resist_pct": 0.6
+      }
+    },
+    "sigils": {
+      "max_level": 8,
+      "cost_base": 1,
+      "cost_per_level": 1,
+      "material": "sigil_ink",
+      "nexus_max_level": 5,
+      "nexus_cost_base": 2,
+      "nexus_cost_per_level": 2,
+      "nexus_min_sigil_sum": 5,
+      "per_level": {
+        "fire": {"fire_crit_bonus_pct": 3.0, "fire_dmg_addition": 40, "fire_def_ignoring_pct": 1.2, "fire_penetration": 10},
+        "water": {"water_crit_bonus_pct": 3.0, "water_dmg_addition": 40, "water_def_ignoring_pct": 1.2, "water_resistance": 15},
+        "thunder": {"thunder_crit_bonus_pct": 3.0, "thunder_dmg_addition": 40, "thunder_def_ignoring_pct": 1.2, "hit_bonus_pct": 1.0},
+        "earth": {"earth_crit_bonus_pct": 2.5, "earth_dmg_addition": 35, "earth_def": 25, "earth_resistance": 18},
+        "wind": {"wind_crit_bonus_pct": 3.0, "wind_dmg_addition": 40, "wind_lucky_strike_pct": 2.0, "wind_penetration": 10}
+      },
+      "nexus_per_level": {
+        "final_dmg_bonus_pct": 1.2,
+        "dmg_penetration_pct": 1.0,
+        "true_damage": 120,
+        "fire_dmg_bonus_pct": 0.8,
+        "water_dmg_bonus_pct": 0.8,
+        "thunder_dmg_bonus_pct": 0.8,
+        "earth_dmg_bonus_pct": 0.8,
+        "wind_dmg_bonus_pct": 0.8
+      }
+    }
   }
 }
